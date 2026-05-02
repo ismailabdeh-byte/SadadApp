@@ -36,7 +36,7 @@ import java.text.SimpleDateFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
+fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: String = "ريال") {
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     
@@ -50,7 +50,6 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
     
     val context = LocalContext.current
     
-    // حساب الرصيد بدقة
     val totalDebt = transactions.filter { it.debt }.sumOf { it.amount }
     val totalPaid = transactions.filter { !it.debt }.sumOf { it.amount }
     val balance = totalDebt - totalPaid
@@ -126,7 +125,6 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
             }
         ) { paddingValues ->
             Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-                // بطاقة الرصيد - في الوسط
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     colors = CardDefaults.cardColors(
@@ -139,14 +137,14 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
                     ) {
                         Text("الرصيد الحالي", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "${formatAmount(kotlin.math.abs(balance))} ريال",
+                            text = "${formatAmount(kotlin.math.abs(balance))} $currency",
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
                             color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
                         )
                         if (customer.debtLimit > 0) {
                             Text(
-                                text = "سقف المديونية: ${formatAmount(customer.debtLimit)} ريال",
+                                text = "سقف المديونية: ${formatAmount(customer.debtLimit)} $currency",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
                             )
@@ -170,6 +168,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
                         items(transactions) { transaction ->
                             TransactionItem(
                                 transaction = transaction,
+                                currency = currency,
                                 onEdit = { showEditDialog.value = it },
                                 onSend = { showSendConfirmDialog.value = it },
                                 onDelete = { showDeleteTransactionConfirm.value = it }
@@ -186,6 +185,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
             customerId = customer.customerId,
             currentBalance = balance,
             debtLimit = customer.debtLimit,
+            currency = currency,
             onDismiss = { showAddDialog.value = false },
             onConfirm = { transaction ->
                 showAddDialog.value = false
@@ -208,16 +208,12 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
             text = { Text("هل تريد إرسال تفاصيل هذه العملية للعميل عبر واتساب؟") },
             confirmButton = {
                 TextButton(onClick = {
-                    sendSingleTransactionWhatsApp(context, customer, transaction, balance)
+                    sendSingleTransactionWhatsApp(context, customer, transaction, balance, currency)
                     showSendConfirmDialog.value = null
-                }) {
-                    Text("إرسال")
-                }
+                }) { Text("إرسال") }
             },
             dismissButton = {
-                TextButton(onClick = { showSendConfirmDialog.value = null }) {
-                    Text("إلغاء")
-                }
+                TextButton(onClick = { showSendConfirmDialog.value = null }) { Text("إلغاء") }
             }
         )
     }
@@ -226,7 +222,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showDeleteTransactionConfirm.value = null },
             title = { Text("حذف العملية") },
-            text = { Text("هل أنت متأكد من حذف هذه العملية؟ لا يمكن التراجع عن هذا الإجراء.") },
+            text = { Text("هل أنت متأكد من حذف هذه العملية؟") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -234,14 +230,10 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
                         showDeleteTransactionConfirm.value = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("حذف")
-                }
+                ) { Text("حذف") }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteTransactionConfirm.value = null }) {
-                    Text("إلغاء")
-                }
+                TextButton(onClick = { showDeleteTransactionConfirm.value = null }) { Text("إلغاء") }
             }
         )
     }
@@ -250,28 +242,20 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm.value = false },
             title = { Text("تصفية السجلات") },
-            text = { Text("سيتم حذف جميع السجلات الحالية لهذا العميل واستبدالها برصيد افتتاحي (رصيد سابق) بالمبلغ المتبقي. هل أنت متأكد؟") },
+            text = { Text("سيتم حذف جميع السجلات واستبدالها برصيد سابق. هل أنت متأكد؟") },
             confirmButton = {
                 Button(
                     onClick = {
                         clearHistoryAndSetBalance(customer.customerId, balance) { success ->
-                            if (success) {
-                                Toast.makeText(context, "تمت التصفية بنجاح", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "فشلت العملية", Toast.LENGTH_SHORT).show()
-                            }
+                            if (success) Toast.makeText(context, "تمت التصفية بنجاح", Toast.LENGTH_SHORT).show()
                         }
                         showDeleteConfirm.value = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("تأكيد التصفية")
-                }
+                ) { Text("تأكيد التصفية") }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm.value = false }) {
-                    Text("إلغاء")
-                }
+                TextButton(onClick = { showDeleteConfirm.value = false }) { Text("إلغاء") }
             }
         )
     }
@@ -281,6 +265,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
             customer = customer,
             transactions = transactions,
             currentBalance = balance,
+            currency = currency,
             onDismiss = { showReportOptions.value = false }
         )
     }
@@ -289,17 +274,14 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit) {
 @Composable
 fun TransactionItem(
     transaction: Transaction, 
+    currency: String,
     onEdit: (Transaction) -> Unit, 
     onSend: (Transaction) -> Unit,
     onDelete: (Transaction) -> Unit
 ) {
     val dateFormat = SimpleDateFormat("yyyy/MM/dd - hh:mm a", Locale.forLanguageTag("ar"))
-    
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onEdit(transaction) },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onEdit(transaction) },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(1.dp)
     ) {
@@ -314,12 +296,7 @@ fun TransactionItem(
                         )
                         if (transaction.sent) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                Icons.Default.CheckCircle, 
-                                contentDescription = "تم الإرسال", 
-                                tint = Color(0xFF25D366),
-                                modifier = Modifier.size(14.dp)
-                            )
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(14.dp))
                         }
                     }
                     Text(text = dateFormat.format(Date(transaction.date)), fontSize = 11.sp, color = Color.Gray)
@@ -327,30 +304,15 @@ fun TransactionItem(
                         Text(text = transaction.note, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                
-                Text(
-                    text = "${formatAmount(transaction.amount)} ريال",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
+                Text(text = "${formatAmount(transaction.amount)} $currency", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
-
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp, color = Color.LightGray)
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = { onSend(transaction) }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send, 
-                        contentDescription = "إرسال واتساب", 
-                        tint = if (transaction.sent) Color.Gray else Color(0xFF25D366)
-                    )
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = if (transaction.sent) Color.Gray else Color(0xFF25D366))
                 }
-
                 IconButton(onClick = { onDelete(transaction) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "حذف العملية", tint = Color.LightGray)
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.LightGray)
                 }
             }
         }
@@ -358,13 +320,7 @@ fun TransactionItem(
 }
 
 @Composable
-fun AddTransactionDialog(
-    customerId: String, 
-    currentBalance: Double,
-    debtLimit: Double,
-    onDismiss: () -> Unit, 
-    onConfirm: (Transaction) -> Unit
-) {
+fun AddTransactionDialog(customerId: String, currentBalance: Double, debtLimit: Double, currency: String, onDismiss: () -> Unit, onConfirm: (Transaction) -> Unit) {
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<Boolean?>(null) }
@@ -384,97 +340,50 @@ fun AddTransactionDialog(
                     RadioButton(selected = selectedType == false, onClick = { selectedType = false })
                     Text("سداد")
                 }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) amount = it },
                     label = { Text("المبلغ") },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next
-                    )
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                 )
-                
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = dateFormat.format(Date(selectedDate)),
                     onValueChange = { },
                     label = { Text("التاريخ") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            showDatePicker(context) { date -> selectedDate = date }
-                        },
-                    enabled = false,
-                    readOnly = true,
-                    trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    modifier = Modifier.fillMaxWidth().clickable { showDatePicker(context) { date -> selectedDate = date } },
+                    enabled = false, readOnly = true,
+                    trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text("ملاحظة") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Done
-                    )
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
             Button(onClick = {
                 val amt = amount.toDoubleOrNull() ?: 0.0
-                if (selectedType == null) {
-                    Toast.makeText(context, "يرجى اختيار نوع العملية (دين أو سداد)", Toast.LENGTH_SHORT).show()
+                if (selectedType == null || amt <= 0) {
+                    Toast.makeText(context, "بيانات غير صحيحة", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
-                if (amt <= 0) {
-                    Toast.makeText(context, "يرجى إدخال مبلغ صحيح", Toast.LENGTH_SHORT).show()
+                if (selectedType == true && debtLimit > 0 && currentBalance + amt > debtLimit) {
+                    Toast.makeText(context, "تجاوز سقف المديونية!", Toast.LENGTH_LONG).show()
                     return@Button
                 }
-
-                // التحقق من سقف المديونية
-                if (selectedType == true && debtLimit > 0) {
-                    if (currentBalance + amt > debtLimit) {
-                        val remaining = debtLimit - currentBalance
-                        Toast.makeText(context, "تجاوز سقف المديونية! المتبقي المسموح به: ${formatAmount(if (remaining > 0) remaining else 0.0)} ريال", Toast.LENGTH_LONG).show()
-                        return@Button
-                    }
-                }
-                
                 val db = FirebaseFirestore.getInstance()
                 val id = UUID.randomUUID().toString()
-                val trans = Transaction(
-                    transactionId = id,
-                    customerId = customerId,
-                    amount = amt,
-                    note = note,
-                    debt = selectedType!!,
-                    date = selectedDate
-                )
+                val trans = Transaction(transactionId = id, customerId = customerId, amount = amt, note = note, debt = selectedType!!, date = selectedDate)
                 db.collection("transactions").document(id).set(trans)
                 onConfirm(trans)
-            }) {
-                Text("إضافة")
-            }
+            }) { Text("إضافة") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إلغاء")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
 }
 
@@ -504,44 +413,23 @@ fun EditTransactionDialog(transaction: Transaction, onDismiss: () -> Unit) {
                     onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) amount = it },
                     label = { Text("المبلغ") },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next
-                    )
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                 )
-                
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = dateFormat.format(Date(selectedDate)),
                     onValueChange = { },
                     label = { Text("التاريخ") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            showDatePicker(context) { date -> selectedDate = date }
-                        },
-                    enabled = false,
-                    readOnly = true,
-                    trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    modifier = Modifier.fillMaxWidth().clickable { showDatePicker(context) { date -> selectedDate = date } },
+                    enabled = false, readOnly = true,
+                    trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text("ملاحظة") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Done
-                    )
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
@@ -549,38 +437,19 @@ fun EditTransactionDialog(transaction: Transaction, onDismiss: () -> Unit) {
             Button(onClick = {
                 val amt = amount.toDoubleOrNull() ?: 0.0
                 if (amt > 0) {
-                    val db = FirebaseFirestore.getInstance()
-                    db.collection("transactions").document(transaction.transactionId).update(
-                        mapOf(
-                            "amount" to amt,
-                            "note" to note,
-                            "debt" to isDebt,
-                            "date" to selectedDate
-                        )
-                    )
+                    FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId)
+                        .update(mapOf("amount" to amt, "note" to note, "debt" to isDebt, "date" to selectedDate))
                     onDismiss()
                 }
-            }) {
-                Text("تعديل")
-            }
+            }) { Text("تعديل") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إلغاء")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
 }
 
 @Composable
-fun ReportOptionsDialog(
-    customer: Customer, 
-    transactions: List<Transaction>, 
-    currentBalance: Double,
-    onDismiss: () -> Unit
-) {
+fun ReportOptionsDialog(customer: Customer, transactions: List<Transaction>, currentBalance: Double, currency: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("مشاركة تقرير") },
@@ -588,72 +457,31 @@ fun ReportOptionsDialog(
             Column {
                 ListItem(
                     headlineContent = { Text("كشف حساب كامل") },
-                    supportingContent = { Text("يتضمن كافة العمليات المسجلة") },
                     leadingContent = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                    modifier = Modifier.clickable {
-                        sendWhatsAppReport(context, customer, currentBalance, transactions, "كشف حساب كامل")
-                        onDismiss()
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("تقرير العمليات الأخيرة (10)") },
-                    leadingContent = { Icon(Icons.Default.Info, contentDescription = null) },
-                    modifier = Modifier.clickable {
-                        sendWhatsAppReport(context, customer, currentBalance, transactions.take(10), "تقرير آخر 10 عمليات")
-                        onDismiss()
-                    }
+                    modifier = Modifier.clickable { sendWhatsAppReport(context, customer, currentBalance, transactions, "كشف حساب كامل", currency = currency); onDismiss() }
                 )
                 ListItem(
                     headlineContent = { Text("تقرير مديونية فقط") },
-                    supportingContent = { Text("إرسال الرصيد النهائي فقط") },
                     leadingContent = { Icon(Icons.Default.AccountBox, contentDescription = null) },
-                    modifier = Modifier.clickable {
-                        sendWhatsAppReport(context, customer, currentBalance, emptyList(), "إشعار رصيد مديونية")
-                        onDismiss()
-                    }
+                    modifier = Modifier.clickable { sendWhatsAppReport(context, customer, currentBalance, emptyList(), "إشعار رصيد مديونية", currency = currency); onDismiss() }
                 )
             }
         },
         confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } }
     )
 }
 
-private fun makeCall(context: Context, phoneNumber: String) {
-    val intent = Intent(Intent.ACTION_DIAL)
-    intent.data = "tel:$phoneNumber".toUri()
-    context.startActivity(intent)
-}
-
-fun sendSingleTransactionWhatsApp(context: Context, customer: Customer, transaction: Transaction, currentBalance: Double) {
+fun sendSingleTransactionWhatsApp(context: Context, customer: Customer, transaction: Transaction, currentBalance: Double, currency: String) {
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.forLanguageTag("ar"))
     val title = if (transaction.debt) "إشعار عملية دين" else "إشعار عملية سداد"
-    val noteValue = if (transaction.note.isNotEmpty() && transaction.note != "رصيد سابق") "\nملاحظة: ${transaction.note}" else ""
-    
-    val message = "$title\n" +
-            "العميل: ${customer.name}\n" +
-            "المبلغ: ${formatAmount(transaction.amount)} ريال" +
-            noteValue +
-            "\nالتاريخ: ${dateFormat.format(Date(transaction.date))}\n" +
-            "رصيد المديونية: ${formatAmount(currentBalance)} ريال"
-
-    val phoneNumber = customer.phoneNumber.filter { it.isDigit() }.let {
-        if (it.length == 9) "967$it" else it
-    }
-    
-    val url = "https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}"
+    val message = "$title\nالعميل: ${customer.name}\nالمبلغ: ${formatAmount(transaction.amount)} $currency\nالتاريخ: ${dateFormat.format(Date(transaction.date))}\nالرصيد المتبقي: ${formatAmount(currentBalance)} $currency"
+    val phoneNumber = customer.phoneNumber.filter { it.isDigit() }.let { if (it.length == 9) "967$it" else it }
     try {
-        val intent = Intent(Intent.ACTION_VIEW)
-        intent.data = url.toUri()
+        val intent = Intent(Intent.ACTION_VIEW).apply { data = "https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}".toUri() }
         context.startActivity(intent)
-        updateTransactionSentStatus(transaction.transactionId)
-    } catch (_: Exception) {
-        Toast.makeText(context, "فشل في فتح واتساب", Toast.LENGTH_SHORT).show()
-    }
+        FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId).update("sent", true)
+    } catch (_: Exception) { Toast.makeText(context, "فشل في فتح واتساب", Toast.LENGTH_SHORT).show() }
 }
 
 private fun updateTransactionSentStatus(transactionId: String) {
@@ -662,64 +490,24 @@ private fun updateTransactionSentStatus(transactionId: String) {
 }
 
 private fun deleteTransaction(transactionId: String) {
-    val db = FirebaseFirestore.getInstance()
-    db.collection("transactions").document(transactionId).delete()
+    FirebaseFirestore.getInstance().collection("transactions").document(transactionId).delete()
 }
 
-private fun sendWhatsAppReport(
-    context: Context, 
-    customer: Customer, 
-    currentBalance: Double, 
-    reportTransactions: List<Transaction>, 
-    title: String,
-    includeBalanceBefore: Boolean = false,
-    balanceAtStart: Double = 0.0
-) {
+private fun sendWhatsAppReport(context: Context, customer: Customer, currentBalance: Double, reportTransactions: List<Transaction>, title: String, currency: String) {
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.forLanguageTag("ar"))
-    val report = StringBuilder()
-    report.append("$title\n")
-    report.append("العميل: ${customer.name}\n")
-    report.append("تاريخ التقرير: ${dateFormat.format(Date())}\n")
-    report.append("------------------------------------------\n")
-    
-    if (includeBalanceBefore) {
-        report.append("الرصيد السابق: ${formatAmount(balanceAtStart)} ريال\n")
-        report.append("------------------------------------------\n")
-    }
-
+    val report = StringBuilder("$title\nالعميل: ${customer.name}\nالتاريخ: ${dateFormat.format(Date())}\n-----------------\n")
     if (reportTransactions.isNotEmpty()) {
-        report.append("تفاصيل العمليات:\n")
         reportTransactions.sortedBy { it.date }.forEach {
             val type = if (it.debt) "دين" else "سداد"
-            val noteValue = if (it.note.isNotEmpty() && it.note != "رصيد سابق") " ${it.note}" else ""
-            report.append("$type: ${formatAmount(it.amount)} ريال$noteValue - ${dateFormat.format(Date(it.date))}\n")
+            report.append("$type: ${formatAmount(it.amount)} $currency - ${dateFormat.format(Date(it.date))}\n")
         }
-        report.append("------------------------------------------\n")
+        report.append("-----------------\n")
     }
-    
-    val totalDebtInPeriod = reportTransactions.filter { it.debt }.sumOf { it.amount }
-    val totalPaidInPeriod = reportTransactions.filter { !it.debt }.sumOf { it.amount }
-    
-    if (includeBalanceBefore) {
-        report.append("إجمالي الفترة (عليه): ${formatAmount(totalDebtInPeriod)} ريال\n")
-        report.append("إجمالي الفترة (له): ${formatAmount(totalPaidInPeriod)} ريال\n")
-    }
-    
-    report.append("رصيد المديونية النهائي: ${formatAmount(currentBalance)} ريال\n")
-    report.append("------------------------------------------\n")
-    
-    val phoneNumber = customer.phoneNumber.filter { it.isDigit() }.let {
-        if (it.length == 9) "967$it" else it
-    }
-    
-    val url = "https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(report.toString(), "UTF-8")}"
+    report.append("الرصيد النهائي: ${formatAmount(currentBalance)} $currency")
+    val phoneNumber = customer.phoneNumber.filter { it.isDigit() }.let { if (it.length == 9) "967$it" else it }
     try {
-        val intent = Intent(Intent.ACTION_VIEW)
-        intent.data = url.toUri()
-        context.startActivity(intent)
-    } catch (_: Exception) {
-        Toast.makeText(context, "واتساب غير مثبت أو فشل الإرسال", Toast.LENGTH_SHORT).show()
-    }
+        context.startActivity(Intent(Intent.ACTION_VIEW).apply { data = "https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(report.toString(), "UTF-8")}".toUri() })
+    } catch (_: Exception) { Toast.makeText(context, "فشل الإرسال", Toast.LENGTH_SHORT).show() }
 }
 
 private fun clearHistoryAndSetBalance(customerId: String, balance: Double, onResult: (Boolean) -> Unit) {

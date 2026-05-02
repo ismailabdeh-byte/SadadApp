@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
@@ -31,37 +32,42 @@ fun CustomerListScreen(
     onAddCustomerClick: () -> Unit,
     onEditCustomerClick: (Customer) -> Unit,
     onCustomerClick: (Customer) -> Unit,
-    onDailyReportClick: () -> Unit
+    onDailyReportClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    currency: String = "ريال" // استلام العملة المختارة
 ) {
     var customers by remember { mutableStateOf<List<Customer>>(emptyList()) }
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    
+    val auth = FirebaseAuth.getInstance()
+    val currentUserId = auth.currentUser?.uid ?: ""
 
-    // جلب البيانات من Firestore
-    LaunchedEffect(Unit) {
+    LaunchedEffect(currentUserId) {
+        if (currentUserId.isEmpty()) return@LaunchedEffect
         val db = FirebaseFirestore.getInstance()
         
-        // جلب العملاء
         db.collection("customers")
-            .addSnapshotListener { value, error ->
+            .whereEqualTo("userId", currentUserId)
+            .addSnapshotListener { value, _ ->
                 if (value != null) {
                     customers = value.toObjects(Customer::class.java)
                 }
             }
             
-        // جلب العمليات لحساب الأرصدة
         db.collection("transactions")
-            .addSnapshotListener { value, error ->
+            .addSnapshotListener { value, _ ->
                 if (value != null) {
-                    transactions = value.toObjects(Transaction::class.java)
+                    val allTrans = value.toObjects(Transaction::class.java)
+                    val customerIds = customers.map { it.customerId }.toSet()
+                    transactions = allTrans.filter { it.customerId in customerIds }
                 }
                 isLoading = false
             }
     }
 
-    // تصفية القائمة بناءً على البحث
     val filteredCustomers = if (searchQuery.isEmpty()) {
         customers
     } else {
@@ -75,10 +81,13 @@ fun CustomerListScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("قائمة العملاء") },
+                    title = { Text("سداد - قائمة العملاء") },
                     actions = {
                         IconButton(onClick = onDailyReportClick) {
                             Icon(Icons.Default.List, contentDescription = "التقرير اليومي")
+                        }
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "الإعدادات")
                         }
                     }
                 )
@@ -94,7 +103,6 @@ fun CustomerListScreen(
                     .padding(paddingValues)
                     .fillMaxSize()
             ) {
-                // حساب إجمالي مديونيات جميع العملاء (فقط المبالغ الموجبة التي تمثل ديون فعلية)
                 val totalAllBalances = customers.sumOf { customer ->
                     val customerTransactions = transactions.filter { it.customerId == customer.customerId }
                     val debt = customerTransactions.filter { it.debt }.sumOf { it.amount }
@@ -103,7 +111,6 @@ fun CustomerListScreen(
                     if (balance > 0) balance else 0.0
                 }
 
-                // كرت إجمالي المديونيات
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -118,7 +125,7 @@ fun CustomerListScreen(
                         Column {
                             Text("إجمالي مديونيات العملاء", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
                             Text(
-                                text = "${formatAmount(totalAllBalances)} ريال",
+                                text = "${formatAmount(totalAllBalances)} $currency", // استخدام العملة
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFD32F2F)
@@ -128,7 +135,6 @@ fun CustomerListScreen(
                     }
                 }
 
-                // حقل البحث
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -147,7 +153,6 @@ fun CustomerListScreen(
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(filteredCustomers) { customer ->
-                            // حساب رصيد هذا العميل
                             val customerTransactions = transactions.filter { it.customerId == customer.customerId }
                             val totalDebt = customerTransactions.filter { it.debt }.sumOf { it.amount }
                             val totalPaid = customerTransactions.filter { !it.debt }.sumOf { it.amount }
@@ -156,11 +161,10 @@ fun CustomerListScreen(
                             CustomerItem(
                                 customer = customer,
                                 balance = balance,
+                                currency = currency, // تمرير العملة
                                 onClick = { onCustomerClick(customer) },
                                 onEdit = { onEditCustomerClick(customer) },
-                                onDelete = {
-                                    deleteCustomer(customer.customerId, context)
-                                }
+                                onDelete = { deleteCustomer(customer.customerId, context) }
                             )
                         }
                     }
@@ -171,7 +175,7 @@ fun CustomerListScreen(
 }
 
 @Composable
-fun CustomerItem(customer: Customer, balance: Double, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun CustomerItem(customer: Customer, balance: Double, currency: String, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -179,19 +183,15 @@ fun CustomerItem(customer: Customer, balance: Double, onClick: () -> Unit, onEdi
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("حذف العميل") },
-            text = { Text("هل أنت متأكد من حذف العميل ${customer.name}؟ لا يمكن التراجع عن هذا الإجراء.") },
+            text = { Text("هل أنت متأكد من حذف العميل ${customer.name}؟") },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete()
                     showDeleteDialog = false
-                }) {
-                    Text("حذف", color = Color.Red)
-                }
+                }) { Text("حذف", color = Color.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("إلغاء")
-                }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("إلغاء") }
             }
         )
     }
@@ -204,9 +204,7 @@ fun CustomerItem(customer: Customer, balance: Double, onClick: () -> Unit, onEdi
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -214,7 +212,7 @@ fun CustomerItem(customer: Customer, balance: Double, onClick: () -> Unit, onEdi
                 Text(text = customer.name, style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${formatAmount(balance)} ريال",
+                    text = "${formatAmount(balance)} $currency", // استخدام العملة
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C),
                     fontWeight = FontWeight.Bold
@@ -236,20 +234,8 @@ fun CustomerItem(customer: Customer, balance: Double, onClick: () -> Unit, onEdi
     }
 }
 
-private fun makeCall(context: Context, phoneNumber: String) {
-    val intent = Intent(Intent.ACTION_DIAL)
-    intent.data = Uri.parse("tel:$phoneNumber")
-    context.startActivity(intent)
-}
-
-private fun deleteCustomer(customerId: String, context: android.content.Context) {
+private fun deleteCustomer(customerId: String, context: Context) {
     val db = FirebaseFirestore.getInstance()
-    db.collection("customers").document(customerId)
-        .delete()
-        .addOnSuccessListener {
-            Toast.makeText(context, "تم حذف العميل بنجاح", Toast.LENGTH_SHORT).show()
-        }
-        .addOnFailureListener { e ->
-            Toast.makeText(context, "فشل الحذف: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+    db.collection("customers").document(customerId).delete()
+        .addOnSuccessListener { Toast.makeText(context, "تم الحذف بنجاح", Toast.LENGTH_SHORT).show() }
 }

@@ -20,7 +20,7 @@ import com.sadad.ye.models.Customer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditCustomerScreen(customer: Customer, onBack: () -> Unit) {
+fun EditCustomerScreen(customer: Customer, onBack: () -> Unit, currency: String = "ريال") {
     val context = LocalContext.current
     var name by remember { mutableStateOf(customer.name) }
     var phone by remember { mutableStateOf(customer.phoneNumber) }
@@ -74,7 +74,7 @@ fun EditCustomerScreen(customer: Customer, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = debtLimit,
                     onValueChange = { debtLimit = it },
-                    label = { Text("سقف المديونية (اختياري)") },
+                    label = { Text("سقف المديونية ($currency)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -87,8 +87,7 @@ fun EditCustomerScreen(customer: Customer, onBack: () -> Unit) {
                     onClick = {
                         if (name.isNotEmpty() && phone.isNotEmpty()) {
                             isLoading = true
-                            val normalizedLimit = debtLimit.replaceDigitsToEnglish()
-                            val limitAmount = normalizedLimit.toDoubleOrNull() ?: 0.0
+                            val limitAmount = debtLimit.replaceDigitsToEnglish().toDoubleOrNull() ?: 0.0
 
                             checkPhoneAndSave(customer.customerId, name, phone, limitAmount, onResult = { success, error ->
                                 isLoading = false
@@ -120,7 +119,7 @@ fun EditCustomerScreen(customer: Customer, onBack: () -> Unit) {
 private fun checkPhoneAndSave(customerId: String, name: String, phone: String, limit: Double, onResult: (Boolean, String?) -> Unit) {
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
-    val userId = auth.currentUser?.uid ?: "test_user_id"
+    val userId = auth.currentUser?.uid ?: return
 
     db.collection("customers")
         .whereEqualTo("userId", userId)

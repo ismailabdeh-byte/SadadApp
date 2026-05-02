@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sadad.ye.models.Transaction
 import java.text.SimpleDateFormat
@@ -23,46 +24,59 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DailyReportScreen(onBack: () -> Unit) {
+fun DailyReportScreen(onBack: () -> Unit, currency: String = "ريال") {
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var customers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
 
+    val auth = FirebaseAuth.getInstance()
+    val currentUserId = auth.currentUser?.uid ?: ""
     val db = FirebaseFirestore.getInstance()
 
-    LaunchedEffect(selectedDate) {
+    LaunchedEffect(selectedDate, currentUserId) {
+        if (currentUserId.isEmpty()) return@LaunchedEffect
         isLoading = true
         
-        // جلب أسماء العملاء
-        db.collection("customers").get().addOnSuccessListener { snapshot ->
-            customers = snapshot.documents.associate { 
-                it.id to (it.getString("name") ?: "عميل غير معروف")
-            }
-        }
-
-        // تحديد بداية ونهاية اليوم
-        val startOfDay = selectedDate.clone() as Calendar
-        startOfDay.set(Calendar.HOUR_OF_DAY, 0)
-        startOfDay.set(Calendar.MINUTE, 0)
-        startOfDay.set(Calendar.SECOND, 0)
-        startOfDay.set(Calendar.MILLISECOND, 0)
-
-        val endOfDay = selectedDate.clone() as Calendar
-        endOfDay.set(Calendar.HOUR_OF_DAY, 23)
-        endOfDay.set(Calendar.MINUTE, 59)
-        endOfDay.set(Calendar.SECOND, 59)
-        endOfDay.set(Calendar.MILLISECOND, 999)
-
-        db.collection("transactions")
-            .whereGreaterThanOrEqualTo("date", startOfDay.timeInMillis)
-            .whereLessThanOrEqualTo("date", endOfDay.timeInMillis)
-            .addSnapshotListener { value, error ->
-                if (value != null) {
-                    transactions = value.toObjects(Transaction::class.java).sortedByDescending { it.date }
+        db.collection("customers")
+            .whereEqualTo("userId", currentUserId)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                val customerMap = snapshot.documents.associate { 
+                    it.id to (it.getString("name") ?: "عميل غير معروف")
                 }
-                isLoading = false
+                customers = customerMap
+
+                val startOfDay = selectedDate.clone() as Calendar
+                startOfDay.set(Calendar.HOUR_OF_DAY, 0)
+                startOfDay.set(Calendar.MINUTE, 0)
+                startOfDay.set(Calendar.SECOND, 0)
+                startOfDay.set(Calendar.MILLISECOND, 0)
+
+                val endOfDay = selectedDate.clone() as Calendar
+                endOfDay.set(Calendar.HOUR_OF_DAY, 23)
+                endOfDay.set(Calendar.MINUTE, 59)
+                endOfDay.set(Calendar.SECOND, 59)
+                endOfDay.set(Calendar.MILLISECOND, 999)
+
+                if (customerMap.isNotEmpty()) {
+                    db.collection("transactions")
+                        .whereIn("customerId", customerMap.keys.toList())
+                        .whereGreaterThanOrEqualTo("date", startOfDay.timeInMillis)
+                        .whereLessThanOrEqualTo("date", endOfDay.timeInMillis)
+                        .get()
+                        .addOnSuccessListener { transSnapshot ->
+                            transactions = transSnapshot.toObjects(Transaction::class.java)
+                                .sortedByDescending { it.date }
+                            isLoading = false
+                        }
+                        .addOnFailureListener { isLoading = false }
+                } else {
+                    transactions = emptyList()
+                    isLoading = false
+                }
             }
+            .addOnFailureListener { isLoading = false }
     }
 
     val totalDebt = transactions.filter { it.debt }.sumOf { it.amount }
@@ -75,7 +89,7 @@ fun DailyReportScreen(onBack: () -> Unit) {
                     title = { Text("التقرير اليومي") },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
                         }
                     }
                 )
@@ -114,12 +128,14 @@ fun DailyReportScreen(onBack: () -> Unit) {
                     SummaryCard(
                         title = "إجمالي الديون",
                         amount = totalDebt,
+                        currency = currency,
                         color = Color(0xFFD32F2F),
                         modifier = Modifier.weight(1f)
                     )
                     SummaryCard(
                         title = "إجمالي التحصيل",
                         amount = totalPaid,
+                        currency = currency,
                         color = Color(0xFF388E3C),
                         modifier = Modifier.weight(1f)
                     )
@@ -144,7 +160,8 @@ fun DailyReportScreen(onBack: () -> Unit) {
                         items(transactions) { transaction ->
                             ReportTransactionItem(
                                 transaction = transaction,
-                                customerName = customers[transaction.customerId] ?: "تحميل..."
+                                customerName = customers[transaction.customerId] ?: "عميل محذوف",
+                                currency = currency
                             )
                         }
                     }
@@ -155,7 +172,7 @@ fun DailyReportScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun SummaryCard(title: String, amount: Double, color: Color, modifier: Modifier = Modifier) {
+fun SummaryCard(title: String, amount: Double, currency: String, color: Color, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
@@ -171,13 +188,13 @@ fun SummaryCard(title: String, amount: Double, color: Color, modifier: Modifier 
                 fontWeight = FontWeight.Bold,
                 color = color
             )
-            Text("ريال", style = MaterialTheme.typography.labelSmall, color = color)
+            Text(currency, style = MaterialTheme.typography.labelSmall, color = color)
         }
     }
 }
 
 @Composable
-fun ReportTransactionItem(transaction: Transaction, customerName: String) {
+fun ReportTransactionItem(transaction: Transaction, customerName: String, currency: String) {
     val timeFormat = SimpleDateFormat("hh:mm a", Locale("ar"))
     
     Card(
@@ -190,7 +207,7 @@ fun ReportTransactionItem(transaction: Transaction, customerName: String) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = customerName, fontWeight = FontWeight.Bold)
+                Text(customerName, fontWeight = FontWeight.Bold)
                 Text(
                     text = timeFormat.format(Date(transaction.date)),
                     fontSize = 11.sp,
@@ -200,7 +217,7 @@ fun ReportTransactionItem(transaction: Transaction, customerName: String) {
             
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "${if (transaction.debt) "+" else "-"} ${formatAmount(transaction.amount)}",
+                    text = "${if (transaction.debt) "+" else "-"} ${formatAmount(transaction.amount)} $currency",
                     fontWeight = FontWeight.Bold,
                     color = if (transaction.debt) Color(0xFFD32F2F) else Color(0xFF388E3C)
                 )

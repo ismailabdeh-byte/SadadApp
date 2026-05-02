@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">سداد</string>
+    <!-- معرف العميل (Web Client ID) من Firebase لتسجيل الدخول بجوجل -->
+    <string name="default_web_client_id">9848288303-v5hr4qngosbd5jb25svrhr3liehijtv2.apps.googleusercontent.com</string>
 </resources>

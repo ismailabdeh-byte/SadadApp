@@ -2,6 +2,8 @@ package com.sadad.ye.ui
 
 import android.app.DatePickerDialog
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.*
@@ -11,12 +13,10 @@ fun formatAmount(amount: Double): String {
     symbols.groupingSeparator = ','
     symbols.decimalSeparator = '.'
     
-    // إذا كان الرقم صحيحاً (لا يحتوي على كسور)، نعرضه بدون علامة عشرية
     return if (amount == amount.toLong().toDouble()) {
         val formatter = DecimalFormat("#,###", symbols)
         formatter.format(amount.toLong())
     } else {
-        // إذا كان يحتوي على كسور، نعرض حتى خانتين عشريتين
         val formatter = DecimalFormat("#,###.##", symbols)
         formatter.format(amount)
     }
@@ -44,4 +44,14 @@ fun String.replaceDigitsToEnglish(): String {
         result = result.replace(arabicDigits[i], i.toString())
     }
     return result
+}
+
+fun makeCall(context: Context, phoneNumber: String) {
+    try {
+        val intent = Intent(Intent.ACTION_DIAL)
+        intent.data = Uri.parse("tel:$phoneNumber")
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Handle exception if needed
+    }
 }

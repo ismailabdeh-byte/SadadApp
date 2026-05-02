@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -26,7 +27,7 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddCustomerScreen(onBack: () -> Unit) {
+fun AddCustomerScreen(onBack: () -> Unit, currency: String = "ريال") {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -34,9 +35,8 @@ fun AddCustomerScreen(onBack: () -> Unit) {
     var debtLimit by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     
-    // التاريخ المختار للرصيد الافتتاحي
+    val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.forLanguageTag("ar"))
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
-    val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale("ar"))
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Scaffold(
@@ -66,7 +66,8 @@ fun AddCustomerScreen(onBack: () -> Unit) {
                     onValueChange = { name = it },
                     label = { Text("اسم العميل") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -77,7 +78,10 @@ fun AddCustomerScreen(onBack: () -> Unit) {
                     label = { Text("رقم الجوال") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Phone,
+                        imeAction = ImeAction.Next
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -85,11 +89,14 @@ fun AddCustomerScreen(onBack: () -> Unit) {
                 OutlinedTextField(
                     value = initialBalance,
                     onValueChange = { initialBalance = it },
-                    label = { Text("رصيد مديونية سابقة (اختياري)") },
+                    label = { Text("رصيد مديونية سابقة ($currency)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    placeholder = { Text("0.00") }
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next
+                    ),
+                    placeholder = { Text("0") }
                 )
                 
                 if (initialBalance.isNotEmpty()) {
@@ -120,10 +127,13 @@ fun AddCustomerScreen(onBack: () -> Unit) {
                 OutlinedTextField(
                     value = debtLimit,
                     onValueChange = { debtLimit = it },
-                    label = { Text("سقف المديونية (اختياري)") },
+                    label = { Text("سقف المديونية ($currency)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
                     placeholder = { Text("اتركه فارغاً ليكون بدون سقف") }
                 )
 
@@ -131,33 +141,34 @@ fun AddCustomerScreen(onBack: () -> Unit) {
 
                 Button(
                     onClick = {
-                        if (name.isNotEmpty() && phone.isNotEmpty()) {
-                            isLoading = true
-                            val normalizedBalance = initialBalance.replaceDigitsToEnglish()
-                            val balanceAmount = normalizedBalance.toDoubleOrNull() ?: 0.0
-                            
-                            val normalizedLimit = debtLimit.replaceDigitsToEnglish()
-                            val limitAmount = normalizedLimit.toDoubleOrNull() ?: 0.0
-                            
-                            checkPhoneAndSave(name, phone, balanceAmount, limitAmount, selectedDate, onResult = { success, error ->
-                                isLoading = false
-                                if (success) {
-                                    Toast.makeText(context, "تمت إضافة العميل بنجاح", Toast.LENGTH_SHORT).show()
-                                    onBack()
-                                } else {
-                                    Log.e("FirestoreError", "Error: $error")
-                                    Toast.makeText(context, error ?: "فشل الاتصال", Toast.LENGTH_LONG).show()
-                                }
-                            })
-                        } else {
+                        if (name.trim().isEmpty() || phone.trim().isEmpty()) {
                             Toast.makeText(context, "يرجى ملء الاسم ورقم الجوال", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        
+                        isLoading = true
+                        val balanceAmount = initialBalance.toDoubleOrNull() ?: 0.0
+                        val limitAmount = debtLimit.toDoubleOrNull() ?: 0.0
+                        
+                        checkPhoneAndSave(name.trim(), phone.trim(), balanceAmount, limitAmount, selectedDate) { success, error ->
+                            isLoading = false
+                            if (success) {
+                                Toast.makeText(context, "تمت إضافة العميل بنجاح", Toast.LENGTH_SHORT).show()
+                                onBack()
+                            } else {
+                                Toast.makeText(context, error ?: "حدث خطأ", Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
                     } else {
                         Text("إضافة عميل")
                     }
@@ -170,7 +181,7 @@ fun AddCustomerScreen(onBack: () -> Unit) {
 private fun checkPhoneAndSave(name: String, phone: String, initialBalance: Double, limit: Double, date: Long, onResult: (Boolean, String?) -> Unit) {
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
-    val userId = auth.currentUser?.uid ?: "test_user_id"
+    val userId = auth.currentUser?.uid ?: return
 
     db.collection("customers")
         .whereEqualTo("userId", userId)
@@ -180,45 +191,24 @@ private fun checkPhoneAndSave(name: String, phone: String, initialBalance: Doubl
             if (documents.isEmpty) {
                 saveCustomerWithBalance(name, phone, userId, initialBalance, limit, date, onResult)
             } else {
-                onResult(false, "رقم الجوال مسجل مسبقاً لعميل آخر")
+                onResult(false, "رقم الجوال مسجل مسبقاً")
             }
         }
-        .addOnFailureListener { e ->
-            onResult(false, e.localizedMessage)
-        }
+        .addOnFailureListener { onResult(false, it.localizedMessage) }
 }
 
 private fun saveCustomerWithBalance(name: String, phone: String, userId: String, initialBalance: Double, limit: Double, date: Long, onResult: (Boolean, String?) -> Unit) {
     val db = FirebaseFirestore.getInstance()
     val batch = db.batch()
-    
     val customerId = UUID.randomUUID().toString()
-    val customer = Customer(
-        customerId = customerId,
-        name = name,
-        phoneNumber = phone,
-        userId = userId,
-        debtLimit = limit
-    )
-
-    val customerRef = db.collection("customers").document(customerId)
-    batch.set(customerRef, customer)
+    val customer = Customer(customerId = customerId, name = name, phoneNumber = phone, userId = userId, debtLimit = limit)
+    batch.set(db.collection("customers").document(customerId), customer)
 
     if (initialBalance > 0) {
         val transactionId = UUID.randomUUID().toString()
-        val transaction = Transaction(
-            transactionId = transactionId,
-            customerId = customerId,
-            amount = initialBalance,
-            note = "رصيد مديونية سابقة",
-            debt = true,
-            date = date
-        )
-        val transactionRef = db.collection("transactions").document(transactionId)
-        batch.set(transactionRef, transaction)
+        val transaction = Transaction(transactionId = transactionId, customerId = customerId, amount = initialBalance, note = "رصيد مديونية سابقة", debt = true, date = date)
+        batch.set(db.collection("transactions").document(transactionId), transaction)
     }
 
-    batch.commit()
-        .addOnSuccessListener { onResult(true, null) }
-        .addOnFailureListener { e -> onResult(false, e.localizedMessage) }
+    batch.commit().addOnSuccessListener { onResult(true, null) }.addOnFailureListener { onResult(false, it.localizedMessage) }
 }
