@@ -6,7 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,7 +45,7 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String = "ريال") {
                     title = { Text("إضافة عميل جديد") },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
                         }
                     }
                 )
@@ -147,8 +147,8 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String = "ريال") {
                         }
                         
                         isLoading = true
-                        val balanceAmount = initialBalance.toDoubleOrNull() ?: 0.0
-                        val limitAmount = debtLimit.toDoubleOrNull() ?: 0.0
+                        val balanceAmount = initialBalance.replaceDigitsToEnglish().toDoubleOrNull() ?: 0.0
+                        val limitAmount = debtLimit.replaceDigitsToEnglish().toDoubleOrNull() ?: 0.0
                         
                         checkPhoneAndSave(name.trim(), phone.trim(), balanceAmount, limitAmount, selectedDate) { success, error ->
                             isLoading = false
@@ -206,7 +206,15 @@ private fun saveCustomerWithBalance(name: String, phone: String, userId: String,
 
     if (initialBalance > 0) {
         val transactionId = UUID.randomUUID().toString()
-        val transaction = Transaction(transactionId = transactionId, customerId = customerId, amount = initialBalance, note = "رصيد مديونية سابقة", debt = true, date = date)
+        val transaction = Transaction(
+            transactionId = transactionId, 
+            customerId = customerId, 
+            userId = userId, // إضافة الـ userId هنا
+            amount = initialBalance, 
+            note = "رصيد مديونية سابقة", 
+            debt = true, 
+            date = date
+        )
         batch.set(db.collection("transactions").document(transactionId), transaction)
     }
 

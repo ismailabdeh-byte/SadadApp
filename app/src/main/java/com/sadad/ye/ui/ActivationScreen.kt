@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.sadad.ye.models.AppSettings
 import com.sadad.ye.utils.SubscriptionUtils
 import java.util.*
 
@@ -24,9 +25,22 @@ import java.util.*
 fun ActivationScreen() {
     var code by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var appSettings by remember { mutableStateOf(AppSettings()) }
+    
     val context = LocalContext.current
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
+
+    // جلب الإعدادات من Firestore
+    LaunchedEffect(Unit) {
+        db.collection("config").document("app_settings")
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null && snapshot.exists()) {
+                    val settings = snapshot.toObject(AppSettings::class.java)
+                    if (settings != null) appSettings = settings
+                }
+            }
+    }
 
     Column(
         modifier = Modifier
@@ -45,7 +59,7 @@ fun ActivationScreen() {
         Spacer(modifier = Modifier.height(24.dp))
         
         Text(
-            text = "تفعيل التطبيق",
+            text = appSettings.activationTitle,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
@@ -53,7 +67,7 @@ fun ActivationScreen() {
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "يرجى الاشتراك للاستمرار في استخدام التطبيق والحفاظ على بياناتك ومزامنتها سحابياً.",
+            text = appSettings.activationDescription,
             textAlign = TextAlign.Center,
             color = Color.Gray
         )
@@ -66,12 +80,10 @@ fun ActivationScreen() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("طرق الدفع المتاحة:", fontWeight = FontWeight.Bold)
-                Text("• بنك الكريمي (حساب): 12345678")
-                Text("• محفظة جوالي: 777111222")
-                Text("• إم فلوس: 733444555")
+                Text(appSettings.paymentMethods)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "بعد التحويل، أرسل صورة الحوالة للرقم 777000000 لاستلام كود التفعيل.",
+                    text = appSettings.contactInfo,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -107,7 +119,7 @@ fun ActivationScreen() {
             enabled = !isLoading
         ) {
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
             } else {
                 Text("تفعيل الآن")
             }

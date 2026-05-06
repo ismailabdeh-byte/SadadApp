@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.sadad.ye.models.AppSettings
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.User
 import com.sadad.ye.ui.*
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
                 
                 var subscriptionStatus by remember { mutableStateOf<Boolean?>(null) }
                 var currentUserData by remember { mutableStateOf<User?>(null) }
+                var appSettings by remember { mutableStateOf(AppSettings()) }
                 
                 // حالة قفل التطبيق
                 var isAppLocked by remember { mutableStateOf(true) }
@@ -44,7 +46,18 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember { mutableStateOf("list") }
                 var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
 
-                // مراقبة دورة حياة التطبيق لإعادة قفله عند الخروج منه
+                // مراقبة إعدادات التطبيق العامة
+                LaunchedEffect(Unit) {
+                    db.collection("config").document("app_settings").addSnapshotListener { snapshot, _ ->
+                        if (snapshot != null && snapshot.exists()) {
+                            snapshot.toObject(AppSettings::class.java)?.let {
+                                appSettings = it
+                            }
+                        }
+                    }
+                }
+
+                // الطريقة الحديثة لإعادة قفل التطبيق فور الخروج منه (ON_STOP)
                 LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
                     if (currentUserData?.isAppLockEnabled == true) {
                         isAppLocked = true
@@ -67,22 +80,30 @@ class MainActivity : ComponentActivity() {
                     onDispose { auth.removeAuthStateListener(listener) }
                 }
 
-                // مراقبة حية لبيانات المستخدم والاشتراك
-                DisposableEffect(currentUserId) {
+                // مراقبة حية لبيانات المستخدم والاشتراك مع دعم العمل بدون إنترنت
+                DisposableEffect(currentUserId, appSettings.trialDays) {
                     if (currentUserId.isEmpty()) {
                         subscriptionStatus = null
                         onDispose {}
                     } else {
                         val userRef = db.collection("users").document(currentUserId)
-                        val registration = userRef.addSnapshotListener { snapshot, _ ->
+                        
+                        // استخدام SnapshotListener مع معالجة البيانات المحلية (Metadata)
+                        val registration = userRef.addSnapshotListener { snapshot, error ->
+                            if (error != null) {
+                                // في حالة الخطأ، نحاول الاعتماد على البيانات المحلية إذا كانت موجودة
+                                return@addSnapshotListener
+                            }
+
                             if (snapshot != null && snapshot.exists()) {
                                 val user = snapshot.toObject(User::class.java)
                                 currentUserData = user
+                                
                                 if (user != null) {
                                     val createdAt = user.createdAt?.toDate() ?: Date(0)
                                     val calendar = Calendar.getInstance()
                                     calendar.time = createdAt
-                                    calendar.add(Calendar.DAY_OF_YEAR, 1)
+                                    calendar.add(Calendar.DAY_OF_YEAR, appSettings.trialDays)
                                     val trialExpiryDate = calendar.time
                                     
                                     val now = Date()
@@ -95,10 +116,14 @@ class MainActivity : ComponentActivity() {
                                     subscriptionStatus = false
                                 }
                             } else if (snapshot != null && !snapshot.exists()) {
-                                val newUser = User(userId = currentUserId, createdAt = Timestamp.now())
-                                userRef.set(newUser)
-                                currentUserData = newUser
-                                subscriptionStatus = true
+                                // إذا كان المستخدم جديداً تماماً ولا يوجد اتصال، قد لا نصل هنا
+                                // لكن عند وجود إنترنت، سنقوم بإنشاء الحساب
+                                if (!snapshot.metadata.isFromCache) {
+                                    val newUser = User(userId = currentUserId, createdAt = Timestamp.now())
+                                    userRef.set(newUser)
+                                    currentUserData = newUser
+                                    subscriptionStatus = true
+                                }
                             }
                         }
                         onDispose { registration.remove() }
@@ -108,20 +133,15 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                     when {
                         !authInitialized -> LoadingBox()
-                        
                         currentUserId.isEmpty() -> AuthScreen(onAuthSuccess = {})
-                        
                         subscriptionStatus == null -> LoadingBox()
-                        
                         subscriptionStatus == false -> ActivationScreen()
-                        
                         currentUserData?.isAppLockEnabled == true && isAppLocked -> {
                             AppLockScreen(
                                 correctPin = currentUserData?.appLockPin ?: "1234",
                                 onUnlock = { isAppLocked = false }
                             )
                         }
-                        
                         else -> MainNavigation(
                             currentScreen = currentScreen,
                             selectedCustomer = selectedCustomer,
@@ -168,23 +188,14 @@ fun MainNavigation(
             EditCustomerScreen(customer = it, onBack = { onNavigate("list", null) }, currency = currency)
         }
         "details" -> selectedCustomer?.let {
-            CustomerDetailsScreen(
-                customer = it, 
-                onBack = { onNavigate("list", null) },
-                currency = currency
-            )
+            CustomerDetailsScreen(customer = it, onBack = { onNavigate("list", null) }, currency = currency)
         }
-        "daily_report" -> DailyReportScreen(
-            onBack = { onNavigate("list", null) },
-            currency = currency
-        )
+        "daily_report" -> DailyReportScreen(onBack = { onNavigate("list", null) }, currency = currency)
         "settings" -> SettingsScreen(
             user = userData,
             onBack = { onNavigate("list", null) },
             onAdminClick = { onNavigate("admin", null) }
         )
-        "admin" -> AdminPanelScreen(
-            onBack = { onNavigate("settings", null) }
-        )
+        "admin" -> AdminPanelScreen(onBack = { onNavigate("settings", null) })
     }
 }

@@ -7,19 +7,30 @@ import com.google.firebase.firestore.PropertyName
  * تمثل عملية مالية (دين أو سداد)
  */
 data class Transaction(
-    val transactionId: String = "",
-    val customerId: String = "",
-    val amount: Double = 0.0,
-    val note: String = "",
-    val date: Long = System.currentTimeMillis(),
+    @get:PropertyName("transactionId") @set:PropertyName("transactionId")
+    var transactionId: String = "",
     
-    @get:PropertyName("debt")
-    @set:PropertyName("debt")
-    var debt: Boolean = true, // true للدين، false للسداد
+    @get:PropertyName("customerId") @set:PropertyName("customerId")
+    var customerId: String = "",
     
-    val sent: Boolean = false // حالة الإرسال للعميل
+    @get:PropertyName("userId") @set:PropertyName("userId")
+    var userId: String = "", // أضفنا هذا الحقل لتسريع التقارير
+    
+    @get:PropertyName("amount") @set:PropertyName("amount")
+    var amount: Double = 0.0,
+    
+    @get:PropertyName("note") @set:PropertyName("note")
+    var note: String = "",
+    
+    @get:PropertyName("date") @set:PropertyName("date")
+    var date: Long = System.currentTimeMillis(),
+    
+    @get:PropertyName("debt") @set:PropertyName("debt")
+    var debt: Boolean = true,
+    
+    @get:PropertyName("sent") @set:PropertyName("sent")
+    var sent: Boolean = false
 ) {
-    // نستخدم getter لضمان التوافق مع الكود في الشاشات
     @get:Exclude
     val isDebt: Boolean get() = debt
 }

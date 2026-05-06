@@ -1,12 +1,23 @@
 package com.sadad.ye.models
 
+import com.google.firebase.firestore.PropertyName
+
 /**
  * تمثل العميل الذي لديه ديون أو مدفوعات
  */
 data class Customer(
-    val customerId: String = "",      // معرف العميل الفريد
-    val name: String = "",            // اسم العميل
-    val phoneNumber: String = "",     // رقم الجوال
-    val userId: String = "",          // معرف المستخدم (صاحب الحساب) الذي يتبعه هذا العميل
-    val debtLimit: Double = 0.0       // سقف المديونية (0.0 تعني بدون سقف)
+    @get:PropertyName("customerId") @set:PropertyName("customerId")
+    var customerId: String = "",
+    
+    @get:PropertyName("name") @set:PropertyName("name")
+    var name: String = "",
+    
+    @get:PropertyName("phoneNumber") @set:PropertyName("phoneNumber")
+    var phoneNumber: String = "",
+    
+    @get:PropertyName("userId") @set:PropertyName("userId")
+    var userId: String = "",
+    
+    @get:PropertyName("debtLimit") @set:PropertyName("debtLimit")
+    var debtLimit: Double = 0.0
 )
