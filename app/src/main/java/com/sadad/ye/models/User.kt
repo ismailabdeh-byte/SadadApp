@@ -35,5 +35,8 @@ data class User(
     var appLockPin: String = "1234",
 
     @get:PropertyName("isAdmin") @set:PropertyName("isAdmin")
-    var isAdmin: Boolean = false // حقل جديد لتمييز المدير
+    var isAdmin: Boolean = false,
+
+    @get:PropertyName("showVoiceInstructions") @set:PropertyName("showVoiceInstructions")
+    var showVoiceInstructions: Boolean = true // حقل للتحكم في ظهور تعليمات الصوت
 )

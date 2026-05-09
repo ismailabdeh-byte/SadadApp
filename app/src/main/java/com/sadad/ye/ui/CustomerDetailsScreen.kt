@@ -464,8 +464,13 @@ fun TransactionItem(
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "إرسال لواتساب", tint = Color(0xFF25D366))
                     }
                 } else if (!transaction.sent) {
-                    // أيقونة قفل بسيطة توضح أن هذه العملية تنتظر ما قبلها
-                    Icon(Icons.Default.LockClock, contentDescription = "بانتظار إرسال العمليات السابقة", tint = Color.LightGray, modifier = Modifier.padding(12.dp).size(20.dp))
+                    // أيقونة قفل تفاعلية توضح السبب عند الضغط
+                    val context = LocalContext.current
+                    IconButton(onClick = {
+                        Toast.makeText(context, "يرجى إرسال العمليات السابقة أولاً للحفاظ على تسلسل حساب العميل في الواتساب، أو تحديدها كمرسلة من القائمة لفتح القفل.", Toast.LENGTH_LONG).show()
+                    }) {
+                        Icon(Icons.Default.LockClock, contentDescription = "بانتظار إرسال العمليات السابقة", tint = Color.LightGray, modifier = Modifier.size(20.dp))
+                    }
                 }
 
                 Box {

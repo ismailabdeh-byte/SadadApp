@@ -124,6 +124,28 @@ fun SettingsScreen(
                     subtitle = user?.defaultCurrency ?: "ريال يمني",
                     onClick = { showCurrencyDialog = true }
                 )
+
+                var voiceInstructionsEnabled by remember { mutableStateOf(user?.showVoiceInstructions ?: true) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("تعليمات الأوامر الصوتية", style = MaterialTheme.typography.titleMedium)
+                        Text("إظهار شرح الاستخدام عند الضغط على الميكروفون", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = voiceInstructionsEnabled,
+                        onCheckedChange = { 
+                            voiceInstructionsEnabled = it
+                            auth.currentUser?.uid?.let { uid ->
+                                db.collection("users").document(uid).update("showVoiceInstructions", it)
+                            }
+                        }
+                    )
+                }
                 
                 var appLockEnabled by remember { mutableStateOf(user?.isAppLockEnabled ?: false) }
                 Row(

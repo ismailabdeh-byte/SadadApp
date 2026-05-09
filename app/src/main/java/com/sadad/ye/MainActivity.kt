@@ -181,7 +181,14 @@ fun MainNavigation(
             onCustomerClick = { onNavigate("details", it) },
             onDailyReportClick = { onNavigate("daily_report", null) },
             onSettingsClick = { onNavigate("settings", null) },
-            currency = currency
+            currency = currency,
+            showVoiceInstructions = userData?.showVoiceInstructions ?: true,
+            onDisableInstructions = { show ->
+                userData?.userId?.let { uid ->
+                    FirebaseFirestore.getInstance().collection("users").document(uid)
+                        .update("showVoiceInstructions", show)
+                }
+            }
         )
         "add" -> AddCustomerScreen(onBack = { onNavigate("list", null) }, currency = currency)
         "edit" -> selectedCustomer?.let {
