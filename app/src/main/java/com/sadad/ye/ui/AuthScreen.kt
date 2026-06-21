@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -92,12 +93,12 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                             }
                         }
                     } else {
-                        Toast.makeText(context, "فشل تسجيل الدخول", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.login_failed), Toast.LENGTH_LONG).show()
                         isLoading = false
                     }
                 }
             } catch (e: ApiException) {
-                Toast.makeText(context, "خطأ: ${e.statusCode}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "${context.getString(R.string.error_occurred)}: ${e.statusCode}", Toast.LENGTH_LONG).show()
                 isLoading = false
             }
         } else {
@@ -116,7 +117,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = if (showForgotPassword) "استعادة كلمة المرور" else if (isSignUp) "إنشاء حساب سداد" else "تسجيل الدخول",
+                text = if (showForgotPassword) stringResource(R.string.password_reset_title) else if (isSignUp) stringResource(R.string.create_account_title) else stringResource(R.string.login_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -129,7 +130,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("اسم المحل / المستخدم") },
+                        label = { Text(stringResource(R.string.store_user_name)) },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         singleLine = true
@@ -138,7 +139,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     OutlinedTextField(
                         value = phone,
                         onValueChange = { phone = it },
-                        label = { Text("رقم الجوال") },
+                        label = { Text(stringResource(R.string.phone_number)) },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -150,7 +151,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("البريد الإلكتروني") },
+                    label = { Text(stringResource(R.string.email_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -162,7 +163,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("كلمة المرور") },
+                    label = { Text(stringResource(R.string.password_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -181,7 +182,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     OutlinedTextField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
-                        label = { Text("تأكيد كلمة المرور") },
+                        label = { Text(stringResource(R.string.confirm_password_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -195,11 +196,11 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                 Button(
                     onClick = {
                         if (email.isEmpty() || password.isEmpty() || (isSignUp && (name.isEmpty() || phone.isEmpty() || confirmPassword.isEmpty()))) {
-                            Toast.makeText(context, "يرجى ملء جميع البيانات", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.fill_all_data), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (isSignUp && password != confirmPassword) {
-                            Toast.makeText(context, "كلمات المرور غير متطابقة", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.passwords_not_matching), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
 
@@ -220,7 +221,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                                         db.collection("users").document(firebaseUser?.uid ?: "").set(newUser)
                                         onAuthSuccess()
                                     } else {
-                                        Toast.makeText(context, "خطأ: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "${context.getString(R.string.error_occurred)}: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
                                         isLoading = false
                                     }
                                 }
@@ -230,7 +231,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                                     if (task.isSuccessful) {
                                         onAuthSuccess()
                                     } else {
-                                        Toast.makeText(context, "فشل تسجيل الدخول", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.login_failed), Toast.LENGTH_SHORT).show()
                                         isLoading = false
                                     }
                                 }
@@ -240,19 +241,19 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     enabled = !isLoading
                 ) {
                     if (isLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    else Text(if (isSignUp) "إنشاء حساب" else "دخول")
+                    else Text(if (isSignUp) stringResource(R.string.add) else stringResource(R.string.login_title))
                 }
 
                 if (!isSignUp) {
                     TextButton(onClick = { showForgotPassword = true }) {
-                        Text("نسيت كلمة المرور؟")
+                        Text(stringResource(R.string.forgot_password_q))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     HorizontalDivider(modifier = Modifier.weight(1f))
-                    Text(" أو ", modifier = Modifier.padding(horizontal = 8.dp), color = Color.Gray)
+                    Text(stringResource(R.string.or), modifier = Modifier.padding(horizontal = 8.dp), color = Color.Gray)
                     HorizontalDivider(modifier = Modifier.weight(1f))
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -267,7 +268,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                 ) {
                     Icon(Icons.Default.AccountCircle, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("الدخول عبر جوجل")
+                    Text(stringResource(R.string.google_login))
                 }
 
                 TextButton(onClick = { 
@@ -275,14 +276,14 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     password = ""
                     confirmPassword = ""
                 }) {
-                    Text(if (isSignUp) "لديك حساب؟ سجل دخولك" else "ليس لديك حساب؟ سجل الآن")
+                    Text(if (isSignUp) stringResource(R.string.have_account) else stringResource(R.string.no_account))
                 }
             } else {
                 // استعادة كلمة المرور
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("أدخل بريدك الإلكتروني") },
+                    label = { Text(stringResource(R.string.enter_email)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(24.dp))
@@ -291,7 +292,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                         if (email.isNotEmpty()) {
                             auth.sendPasswordResetEmail(email).addOnCompleteListener {
                                 if (it.isSuccessful) {
-                                    Toast.makeText(context, "تم إرسال الرابط لبريدك", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, context.getString(R.string.reset_link_sent), Toast.LENGTH_LONG).show()
                                     showForgotPassword = false
                                 }
                             }
@@ -299,10 +300,10 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("إرسال رابط الاستعادة")
+                    Text(stringResource(R.string.send_reset_link))
                 }
                 TextButton(onClick = { showForgotPassword = false }) {
-                    Text("العودة لتسجيل الدخول")
+                    Text(stringResource(R.string.back_to_login))
                 }
             }
         }

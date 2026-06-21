@@ -8,6 +8,7 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.sadad.ye.R
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
 import java.io.File
@@ -19,8 +20,8 @@ object ExportUtils {
 
     fun exportToExcel(context: Context, customers: List<Customer>, transactions: List<Transaction>, userName: String) {
         val csvData = StringBuilder()
-        csvData.append("تقرير مديونيات: $userName\n")
-        csvData.append("اسم العميل,رقم الجوال,إجمالي المديونية\n")
+        csvData.append("${context.getString(R.string.report_excel_header_total, userName)}\n")
+        csvData.append("${context.getString(R.string.report_excel_header_columns)}\n")
         
         customers.forEach { customer ->
             val customerTransactions = transactions.filter { it.customerId == customer.customerId }
@@ -31,7 +32,8 @@ object ExportUtils {
         }
 
         try {
-            val file = File(context.cacheDir, "customers_report.csv")
+            val fileName = "${context.getString(R.string.report_file_name)}.csv"
+            val file = File(context.cacheDir, fileName)
             val out = FileOutputStream(file)
             // إضافة BOM لدعم اللغة العربية في Excel
             out.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())) 
@@ -39,7 +41,7 @@ object ExportUtils {
             out.close()
             shareFile(context, file, "application/vnd.ms-excel")
         } catch (e: Exception) {
-            Toast.makeText(context, "فشل تصدير Excel: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.report_export_excel_error, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -57,21 +59,21 @@ object ExportUtils {
         
         y += 30f
         paint.textSize = 16f
-        canvas.drawText("تقرير المديونيات الشامل", 50f, y, paint)
+        canvas.drawText(context.getString(R.string.report_title), 50f, y, paint)
         
         y += 30f
         paint.textSize = 12f
         paint.isFakeBoldText = false
-        canvas.drawText("تاريخ التقرير: ${SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())}", 50f, y, paint)
+        canvas.drawText(context.getString(R.string.report_date_prefix, SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())), 50f, y, paint)
         
         y += 20f
         canvas.drawLine(50f, y, 550f, y, paint)
         
         y += 25f
         paint.isFakeBoldText = true
-        canvas.drawText("اسم العميل", 50f, y, paint)
-        canvas.drawText("رقم الجوال", 250f, y, paint)
-        canvas.drawText("المبلغ المستحق", 450f, y, paint)
+        canvas.drawText(context.getString(R.string.report_customer_name), 50f, y, paint)
+        canvas.drawText(context.getString(R.string.report_phone), 250f, y, paint)
+        canvas.drawText(context.getString(R.string.report_balance), 450f, y, paint)
 
         y += 10f
         canvas.drawLine(50f, y, 550f, y, paint)
@@ -93,11 +95,12 @@ object ExportUtils {
         pdfDocument.finishPage(page)
 
         try {
-            val file = File(context.cacheDir, "report.pdf")
+            val fileName = "${context.getString(R.string.report_file_name)}.pdf"
+            val file = File(context.cacheDir, fileName)
             pdfDocument.writeTo(FileOutputStream(file))
             shareFile(context, file, "application/pdf")
         } catch (e: Exception) {
-            Toast.makeText(context, "فشل تصدير PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.report_export_pdf_error, e.message), Toast.LENGTH_SHORT).show()
         } finally {
             pdfDocument.close()
         }
@@ -109,6 +112,6 @@ object ExportUtils {
         intent.type = mimeType
         intent.putExtra(Intent.EXTRA_STREAM, uri)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        context.startActivity(Intent.createChooser(intent, "مشاركة التقرير عبر:"))
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.report_share_title)))
     }
 }

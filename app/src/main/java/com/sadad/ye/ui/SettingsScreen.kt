@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -28,12 +29,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import com.sadad.ye.R
+import com.sadad.ye.models.AppSettings
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
 import com.sadad.ye.models.User
 import com.sadad.ye.utils.AccountUtils
+import com.sadad.ye.utils.BackupUtils
 import com.sadad.ye.utils.ExportUtils
 import com.sadad.ye.utils.SubscriptionUtils
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -41,6 +50,7 @@ import java.util.*
 @Composable
 fun SettingsScreen(
     user: User?,
+    appSettings: AppSettings, // استلام الإعدادات العامة
     onBack: () -> Unit,
     onAdminClick: () -> Unit = {}
 ) {
@@ -54,256 +64,394 @@ fun SettingsScreen(
     var showPinDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var showTemplateDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
     
     var activationCode by remember { mutableStateOf("") }
     var isActivating by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
+    var isImporting by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
-
-    val currencies = listOf("ريال يمني", "ريال سعودي", "درهم إماراتي", "دولار أمريكي", "جنية مصري")
-    val userNameForReport = user?.name ?: "مستخدم سداد"
-
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("الإعدادات") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                        }
-                    }
-                )
+    
+    // لاونشر اختيار ملف النسخة الاحتياطية
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            isImporting = true
+            BackupUtils.importBackup(context, it) { success, msg ->
+                isImporting = false
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
+        }
+    }
+
+    val currencies = listOf(
+        stringResource(R.string.currency_yer),
+        stringResource(R.string.currency_sar),
+        stringResource(R.string.currency_aed),
+        stringResource(R.string.currency_usd),
+        stringResource(R.string.currency_egp)
+    )
+    val userNameForReport = user?.name ?: stringResource(R.string.default_user_name)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+        ) {
+            ProfileHeader(user = user, email = auth.currentUser?.email ?: "")
+
+            if (user?.isAdmin == true) {
+                SettingsSectionTitle(title = stringResource(R.string.admin_panel))
+                SettingsItem(
+                    icon = Icons.Default.AdminPanelSettings,
+                    title = stringResource(R.string.admin_panel),
+                    subtitle = stringResource(R.string.admin_panel_subtitle),
+                    onClick = onAdminClick
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+
+            SettingsSectionTitle(title = stringResource(R.string.account_profile))
+            SettingsItem(
+                icon = Icons.Default.Store,
+                title = stringResource(R.string.store_name),
+                subtitle = user?.name ?: stringResource(R.string.default_user_name),
+                onClick = { showNameDialog = true }
+            )
+            SettingsItem(
+                icon = Icons.Default.LocationOn,
+                title = stringResource(R.string.business_address),
+                subtitle = user?.businessAddress ?: stringResource(R.string.business_address),
+                onClick = { showAddressDialog = true }
+            )
+            SettingsItem(
+                icon = Icons.Default.Lock,
+                title = stringResource(R.string.password),
+                subtitle = stringResource(R.string.change_password_subtitle),
+                onClick = { showPasswordDialog = true }
+            )
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            SettingsSectionTitle(title = stringResource(R.string.app_settings))
+            
+            SettingsItem(
+                icon = Icons.Default.Language,
+                title = stringResource(R.string.language),
+                subtitle = if (AppCompatDelegate.getApplicationLocales().toLanguageTags().contains("en")) stringResource(R.string.english) else stringResource(R.string.arabic),
+                onClick = { showLanguageDialog = true }
+            )
+
+            var isDarkMode by remember { mutableStateOf(user?.isDarkMode) }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                ProfileHeader(user = user, email = auth.currentUser?.email ?: "")
-
-                if (user?.isAdmin == true) {
-                    SettingsSectionTitle(title = "الإدارة")
-                    SettingsItem(
-                        icon = Icons.Default.AdminPanelSettings,
-                        title = "لوحة تحكم المدير",
-                        subtitle = "إنشاء وإدارة أكواد التفعيل",
-                        onClick = onAdminClick
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                }
-
-                SettingsSectionTitle(title = "الحساب والملف الشخصي")
-                SettingsItem(
-                    icon = Icons.Default.Store,
-                    title = "اسم المحل / المؤسسة",
-                    subtitle = user?.name ?: "لم يتم التحديد",
-                    onClick = { showNameDialog = true }
-                )
-                SettingsItem(
-                    icon = Icons.Default.LocationOn,
-                    title = "عنوان العمل",
-                    subtitle = user?.businessAddress ?: "غير محدد (يظهر في التقارير)",
-                    onClick = { showAddressDialog = true }
-                )
-                SettingsItem(
-                    icon = Icons.Default.Lock,
-                    title = "كلمة المرور",
-                    subtitle = "تغيير كلمة المرور الخاصة بك",
-                    onClick = { showPasswordDialog = true }
-                )
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                SettingsSectionTitle(title = "إعدادات التطبيق")
-                SettingsItem(
-                    icon = Icons.Default.MonetizationOn,
-                    title = "العملة الافتراضية",
-                    subtitle = user?.defaultCurrency ?: "ريال يمني",
-                    onClick = { showCurrencyDialog = true }
-                )
-
-                var voiceInstructionsEnabled by remember { mutableStateOf(user?.showVoiceInstructions ?: true) }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("تعليمات الأوامر الصوتية", style = MaterialTheme.typography.titleMedium)
-                        Text("إظهار شرح الاستخدام عند الضغط على الميكروفون", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
-                    Switch(
-                        checked = voiceInstructionsEnabled,
-                        onCheckedChange = { 
-                            voiceInstructionsEnabled = it
-                            auth.currentUser?.uid?.let { uid ->
-                                db.collection("users").document(uid).update("showVoiceInstructions", it)
-                            }
-                        }
-                    )
-                }
-                
-                var appLockEnabled by remember { mutableStateOf(user?.isAppLockEnabled ?: false) }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("قفل التطبيق", style = MaterialTheme.typography.titleMedium)
-                        Text("طلب الرمز عند فتح التطبيق", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
-                    Switch(
-                        checked = appLockEnabled,
-                        onCheckedChange = { 
-                            appLockEnabled = it
-                            auth.currentUser?.uid?.let { uid ->
-                                db.collection("users").document(uid).update("isAppLockEnabled", it)
-                            }
-                        }
-                    )
-                }
-                
-                if (appLockEnabled) {
-                    SettingsItem(
-                        icon = Icons.Default.Password,
-                        title = "تغيير رمز الدخول (PIN)",
-                        subtitle = "الرمز الحالي: ${user?.appLockPin}",
-                        onClick = { showPinDialog = true }
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                SettingsSectionTitle(title = "الاشتراك")
-                val expiryDate = user?.subscriptionExpiry?.toDate()
-                val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
-                SettingsItem(
-                    icon = Icons.Default.Star,
-                    title = "حالة الاشتراك",
-                    subtitle = if (expiryDate != null) "ينتهي في: ${dateFormat.format(expiryDate)}" else "فترة تجريبية (يوم واحد)",
-                    onClick = {}
-                )
-                
-                Column(modifier = Modifier.padding(16.dp)) {
-                    OutlinedTextField(
-                        value = activationCode,
-                        onValueChange = { activationCode = it },
-                        label = { Text("تفعيل كود جديد") },
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            if (isActivating) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            } else {
-                                IconButton(onClick = {
-                                    if (activationCode.length >= 6) {
-                                        isActivating = true
-                                        SubscriptionUtils.redeemCode(db, auth.currentUser?.uid ?: "", activationCode) { success, msg ->
-                                            isActivating = false
-                                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                                            if (success) activationCode = ""
-                                        }
-                                    } else {
-                                        Toast.makeText(context, "الكود قصير جداً", Toast.LENGTH_SHORT).show()
-                                    }
-                                }) {
-                                    Icon(Icons.Default.Check, contentDescription = "تفعيل", tint = Color(0xFF388E3C))
-                                }
-                            }
-                        }
-                    )
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                SettingsSectionTitle(title = "البيانات والتقارير")
-                if (isExporting) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-                }
-                
-                SettingsItem(
-                    icon = Icons.Default.PictureAsPdf,
-                    title = "تصدير تقرير PDF",
-                    subtitle = "مشاركة كشف حساب شامل للعملاء",
-                    onClick = {
-                        isExporting = true
-                        fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
-                            ExportUtils.exportToPdf(context, customers, transactions, userNameForReport)
-                            isExporting = false
-                        }
-                    }
-                )
-                
-                SettingsItem(
-                    icon = Icons.Default.TableChart,
-                    title = "تصدير ملف Excel",
-                    subtitle = "حفظ البيانات بصيغة CSV المتوافقة مع الإكسل",
-                    onClick = {
-                        isExporting = true
-                        fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
-                            ExportUtils.exportToExcel(context, customers, transactions, userNameForReport)
-                            isExporting = false
-                        }
-                    }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                SettingsSectionTitle(title = "الدعم والمساعدة")
-                SettingsItem(
-                    icon = Icons.Default.SupportAgent,
-                    title = "تواصل مع الدعم الفني",
-                    subtitle = "مساعدة عبر واتساب",
-                    onClick = { 
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                data = Uri.parse("https://api.whatsapp.com/send?phone=967770000000&text=مرحباً، أحتاج مساعدة في تطبيق سداد")
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "فشل فتح واتساب", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-                
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Button(
-                        onClick = {
-                            auth.signOut()
-                            onBack()
+                Icon(Icons.Default.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.dark_mode), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = when(isDarkMode) {
+                            true -> stringResource(R.string.dark_mode_on)
+                            false -> stringResource(R.string.dark_mode_off)
+                            else -> stringResource(R.string.dark_mode_auto)
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("تسجيل الخروج")
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    TextButton(
-                        onClick = { showDeleteAccountDialog = true },
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        enabled = !isDeletingAccount
-                    ) {
-                        if (isDeletingAccount) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("حذف الحساب نهائياً", color = Color.Gray, fontSize = 12.sp)
+                        style = MaterialTheme.typography.bodySmall, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = isDarkMode == true,
+                    onCheckedChange = { 
+                        val newValue = if (isDarkMode == true) false else true
+                        isDarkMode = newValue
+                        auth.currentUser?.uid?.let { uid ->
+                            db.collection("users").document(uid).update("isDarkMode", newValue)
                         }
                     }
+                )
+            }
+
+            SettingsItem(
+                icon = Icons.Default.MonetizationOn,
+                title = stringResource(R.string.default_currency),
+                subtitle = user?.defaultCurrency ?: stringResource(R.string.currency_yer),
+                onClick = { showCurrencyDialog = true }
+            )
+
+            var voiceInstructionsEnabled by remember { mutableStateOf(user?.showVoiceInstructions ?: true) }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.voice_instructions), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.voice_instructions_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = voiceInstructionsEnabled,
+                    onCheckedChange = { 
+                        voiceInstructionsEnabled = it
+                        auth.currentUser?.uid?.let { uid ->
+                            db.collection("users").document(uid).update("showVoiceInstructions", it)
+                        }
+                    }
+                )
+            }
+            
+            var appLockEnabled by remember { mutableStateOf(user?.isAppLockEnabled ?: false) }
+            var biometricEnabled by remember { mutableStateOf(user?.isBiometricEnabled ?: false) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Fingerprint, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.app_lock), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.app_lock_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = appLockEnabled,
+                    onCheckedChange = { 
+                        appLockEnabled = it
+                        auth.currentUser?.uid?.let { uid ->
+                            db.collection("users").document(uid).update("isAppLockEnabled", it)
+                        }
+                    }
+                )
+            }
+
+            if (appLockEnabled) {
+                // خيار تفعيل البصمة يظهر فقط إذا كان القفل مفعلاً
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Face, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.use_biometric), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.use_biometric_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = { 
+                            biometricEnabled = it
+                            auth.currentUser?.uid?.let { uid ->
+                                db.collection("users").document(uid).update("isBiometricEnabled", it)
+                            }
+                        }
+                    )
+                }
+
+                SettingsItem(
+                    icon = Icons.Default.Password,
+                    title = stringResource(R.string.change_pin),
+                    subtitle = stringResource(R.string.current_pin_prefix, user?.appLockPin ?: ""),
+                    onClick = { showPinDialog = true }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            SettingsSectionTitle(title = stringResource(R.string.debt_notifications))
+            var debtNotificationEnabled by remember { mutableStateOf(user?.debtNotificationEnabled ?: true) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.auto_notification_system), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.auto_notification_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = debtNotificationEnabled,
+                    onCheckedChange = { 
+                        debtNotificationEnabled = it
+                        auth.currentUser?.uid?.let { uid ->
+                            db.collection("users").document(uid).update("debtNotificationEnabled", it)
+                        }
+                    }
+                )
+            }
+
+            SettingsItem(
+                icon = Icons.Default.Message,
+                title = stringResource(R.string.reminder_template),
+                subtitle = stringResource(R.string.reminder_template_subtitle),
+                onClick = { showTemplateDialog = true }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            SettingsSectionTitle(title = stringResource(R.string.subscription))
+            val expiryDate = user?.subscriptionExpiry?.toDate()
+            val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
+            SettingsItem(
+                icon = Icons.Default.Star,
+                title = stringResource(R.string.subscription_status),
+                subtitle = if (expiryDate != null) stringResource(R.string.expiry_date_prefix, dateFormat.format(expiryDate)) else stringResource(R.string.trial_period),
+                onClick = {}
+            )
+            
+            Column(modifier = Modifier.padding(16.dp)) {
+                OutlinedTextField(
+                    value = activationCode,
+                    onValueChange = { activationCode = it },
+                    label = { Text(stringResource(R.string.activate_new_code)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (isActivating) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(onClick = {
+                                if (activationCode.length >= 6) {
+                                    isActivating = true
+                                    SubscriptionUtils.redeemCode(db, auth.currentUser?.uid ?: "", activationCode) { success, msg ->
+                                        isActivating = false
+                                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                        if (success) activationCode = ""
+                                    }
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.code_too_short), Toast.LENGTH_SHORT).show()
+                                }
+                            }) {
+                                Icon(Icons.Default.Check, contentDescription = stringResource(R.string.activate), tint = MaterialTheme.colorScheme.secondary)
+                            }
+                        }
+                    }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            SettingsSectionTitle(title = stringResource(R.string.data_backup))
+            if (isExporting || isImporting) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+            }
+            
+            SettingsItem(
+                icon = Icons.Default.CloudUpload,
+                title = stringResource(R.string.create_backup),
+                subtitle = stringResource(R.string.create_backup_subtitle),
+                onClick = {
+                    isExporting = true
+                    fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+                        BackupUtils.exportBackup(context, user, customers, transactions)
+                        isExporting = false
+                    }
+                }
+            )
+
+            SettingsItem(
+                icon = Icons.Default.CloudDownload,
+                title = stringResource(R.string.restore_backup),
+                subtitle = stringResource(R.string.restore_backup_subtitle),
+                onClick = { importLauncher.launch("application/json") }
+            )
+
+            SettingsItem(
+                icon = Icons.Default.PictureAsPdf,
+                title = stringResource(R.string.export_pdf),
+                subtitle = stringResource(R.string.export_pdf_subtitle),
+                onClick = {
+                    isExporting = true
+                    fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+                        ExportUtils.exportToPdf(context, customers, transactions, userNameForReport)
+                        isExporting = false
+                    }
+                }
+            )
+            
+            SettingsItem(
+                icon = Icons.Default.TableChart,
+                title = stringResource(R.string.export_excel),
+                subtitle = stringResource(R.string.export_excel_subtitle),
+                onClick = {
+                    isExporting = true
+                    fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+                        ExportUtils.exportToExcel(context, customers, transactions, userNameForReport)
+                        isExporting = false
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            SettingsSectionTitle(title = stringResource(R.string.support_help))
+            SettingsItem(
+                icon = Icons.Default.SupportAgent,
+                title = stringResource(R.string.contact_support),
+                subtitle = stringResource(R.string.support_whatsapp_subtitle),
+                onClick = { 
+                    try {
+                        val supportNumber = appSettings.supportPhone
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            data = Uri.parse("https://api.whatsapp.com/send?phone=$supportNumber&text=${URLEncoder.encode(context.getString(R.string.whatsapp_support_message), "UTF-8")}")
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, context.getString(R.string.whatsapp_error), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Column(modifier = Modifier.padding(16.dp)) {
+                Button(
+                    onClick = {
+                        auth.signOut()
+                        onBack()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.logout))
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                TextButton(
+                    onClick = { showDeleteAccountDialog = true },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    enabled = !isDeletingAccount
+                ) {
+                    if (isDeletingAccount) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(stringResource(R.string.delete_account), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
+                }
             }
+            
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 
@@ -312,13 +460,13 @@ fun SettingsScreen(
         var newName by remember { mutableStateOf(user?.name ?: "") }
         AlertDialog(
             onDismissRequest = { showNameDialog = false },
-            title = { Text("تعديل اسم المحل") },
-            text = { OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("الاسم") }) },
+            title = { Text(stringResource(R.string.edit_store_name)) },
+            text = { OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text(stringResource(R.string.name)) }) },
             confirmButton = {
                 TextButton(onClick = {
                     auth.currentUser?.uid?.let { db.collection("users").document(it).update("name", newName) }
                     showNameDialog = false
-                }) { Text("حفظ") }
+                }) { Text(stringResource(R.string.save)) }
             }
         )
     }
@@ -327,13 +475,13 @@ fun SettingsScreen(
         var newAddress by remember { mutableStateOf(user?.businessAddress ?: "") }
         AlertDialog(
             onDismissRequest = { showAddressDialog = false },
-            title = { Text("تعديل عنوان العمل") },
-            text = { OutlinedTextField(value = newAddress, onValueChange = { newAddress = it }, label = { Text("العنوان") }) },
+            title = { Text(stringResource(R.string.edit_business_address)) },
+            text = { OutlinedTextField(value = newAddress, onValueChange = { newAddress = it }, label = { Text(stringResource(R.string.address)) }) },
             confirmButton = {
                 TextButton(onClick = {
                     auth.currentUser?.uid?.let { db.collection("users").document(it).update("businessAddress", newAddress) }
                     showAddressDialog = false
-                }) { Text("حفظ") }
+                }) { Text(stringResource(R.string.save)) }
             }
         )
     }
@@ -342,12 +490,12 @@ fun SettingsScreen(
         var newPin by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showPinDialog = false },
-            title = { Text("تغيير رمز PIN") },
+            title = { Text(stringResource(R.string.change_pin_title)) },
             text = {
                 OutlinedTextField(
                     value = newPin,
                     onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) newPin = it },
-                    label = { Text("رمز جديد (4 أرقام)") },
+                    label = { Text(stringResource(R.string.new_pin_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             },
@@ -357,7 +505,7 @@ fun SettingsScreen(
                         auth.currentUser?.uid?.let { db.collection("users").document(it).update("appLockPin", newPin) }
                         showPinDialog = false
                     }
-                }) { Text("حفظ") }
+                }) { Text(stringResource(R.string.save)) }
             }
         )
     }
@@ -365,8 +513,8 @@ fun SettingsScreen(
     if (showDeleteAccountDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
-            title = { Text("حذف الحساب نهائياً") },
-            text = { Text("هل أنت متأكد؟ سيتم حذف جميع بياناتك وعملائك نهائياً.") },
+            title = { Text(stringResource(R.string.delete_account)) },
+            text = { Text(stringResource(R.string.delete_account_confirmation)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -379,16 +527,16 @@ fun SettingsScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) { Text("تأكيد الحذف") }
+                ) { Text(stringResource(R.string.confirm_delete)) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
     if (showCurrencyDialog) {
         AlertDialog(
             onDismissRequest = { showCurrencyDialog = false },
-            title = { Text("اختر العملة") },
+            title = { Text(stringResource(R.string.choose_currency)) },
             text = {
                 Column {
                     currencies.forEach { curr ->
@@ -410,19 +558,103 @@ fun SettingsScreen(
         var p1 by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showPasswordDialog = false },
-            title = { Text("تغيير كلمة المرور") },
-            text = { OutlinedTextField(value = p1, onValueChange = { p1 = it }, label = { Text("كلمة المرور الجديدة") }, visualTransformation = PasswordVisualTransformation()) },
+            title = { Text(stringResource(R.string.change_password_title)) },
+            text = { OutlinedTextField(value = p1, onValueChange = { p1 = it }, label = { Text(stringResource(R.string.new_password_label)) }, visualTransformation = PasswordVisualTransformation()) },
             confirmButton = {
                 TextButton(onClick = {
                     if (p1.length >= 6) {
                         auth.currentUser?.updatePassword(p1)?.addOnSuccessListener {
-                            Toast.makeText(context, "تم التحديث", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.updated_successfully), Toast.LENGTH_SHORT).show()
                             showPasswordDialog = false
                         }
                     }
-                }) { Text("تحديث") }
+                }) { Text(stringResource(R.string.update)) }
             }
         )
+    }
+
+    if (showTemplateDialog) {
+        var template by remember { mutableStateOf(user?.whatsappReminderTemplate ?: "") }
+        val defaultTemplate = stringResource(R.string.default_whatsapp_template)
+        
+        AlertDialog(
+            onDismissRequest = { showTemplateDialog = false },
+            title = { Text(stringResource(R.string.edit_reminder_template)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.template_hint), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = template.ifEmpty { defaultTemplate },
+                        onValueChange = { template = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4
+                    )
+                    if (template.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.trial_period), // Reuse a label or add a new one like "Using default"
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    auth.currentUser?.uid?.let { db.collection("users").document(it).update("whatsappReminderTemplate", template) }
+                    showTemplateDialog = false
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTemplateDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.choose_language)) },
+            text = {
+                Column {
+                    LanguageOption(
+                        title = stringResource(R.string.arabic),
+                        selected = !AppCompatDelegate.getApplicationLocales().toLanguageTags().contains("en"),
+                        onClick = {
+                            val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags("ar")
+                            AppCompatDelegate.setApplicationLocales(appLocale)
+                            showLanguageDialog = false
+                        }
+                    )
+                    LanguageOption(
+                        title = stringResource(R.string.english),
+                        selected = AppCompatDelegate.getApplicationLocales().toLanguageTags().contains("en"),
+                        onClick = {
+                            val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags("en")
+                            AppCompatDelegate.setApplicationLocales(appLocale)
+                            showLanguageDialog = false
+                        }
+                    )
+                }
+            },
+            confirmButton = {}
+        )
+    }
+}
+
+@Composable
+fun LanguageOption(title: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(text = title, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -435,13 +667,13 @@ fun ProfileHeader(user: User?, email: String) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(modifier = Modifier.size(60.dp), shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primary) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(text = (user?.name?.take(1) ?: "U").uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                    Text(text = (user?.name?.take(1) ?: "U").uppercase(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(text = user?.name ?: "مستخدم سداد", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(text = email, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                Text(text = user?.name ?: stringResource(R.string.default_user_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(text = email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -471,7 +703,7 @@ fun SettingsItem(icon: ImageVector, title: String, subtitle: String, onClick: ()
         Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

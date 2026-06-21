@@ -18,6 +18,9 @@ data class AppSettings(
     @get:PropertyName("contactInfo") @set:PropertyName("contactInfo")
     var contactInfo: String = "بعد التحويل، أرسل صورة الحوالة للرقم 777000000 لاستلام كود التفعيل.",
 
+    @get:PropertyName("supportPhone") @set:PropertyName("supportPhone")
+    var supportPhone: String = "967770000000", // رقم الدعم الفني
+
     @get:PropertyName("trialDays") @set:PropertyName("trialDays")
     var trialDays: Int = 1 // مدة الفترة التجريبية (افتراضياً يوم واحد)
 )

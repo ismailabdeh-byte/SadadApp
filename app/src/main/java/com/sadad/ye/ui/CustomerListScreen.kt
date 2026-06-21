@@ -34,8 +34,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import androidx.compose.ui.res.stringResource
+import com.sadad.ye.R
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
+import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +75,7 @@ fun CustomerListScreen(
     val recognizerIntent = remember {
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (Locale.getDefault().language == "en") "en-US" else "ar-SA")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
     }
@@ -89,7 +92,7 @@ fun CustomerListScreen(
                 isListening = false
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
-                    voiceResult = voiceAnalysis(matches[0], currentCustomers)
+                    voiceResult = voiceAnalysis(matches[0], currentCustomers, context)
                     showInstructionsDialog = false
                 }
             }
@@ -125,14 +128,14 @@ fun CustomerListScreen(
         transactions.filter { it.customerId == customer.customerId }.maxOfOrNull { it.date } ?: 0L
     }
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    CompositionLocalProvider(LocalLayoutDirection provides (if (Locale.getDefault().language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr)) {
         Scaffold(
-            topBar = {
+        topBar = {
                 TopAppBar(
-                    title = { Text("سداد - قائمة العملاء") },
+                    title = { Text(stringResource(R.string.app_title)) },
                     actions = {
-                        IconButton(onClick = onDailyReportClick) { Icon(Icons.AutoMirrored.Filled.List, "التقرير") }
-                        IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, "الإعدادات") }
+                        IconButton(onClick = onDailyReportClick) { Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.report_title)) }
+                        IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, stringResource(R.string.settings_title)) }
                     }
                 )
             },
@@ -156,9 +159,9 @@ fun CustomerListScreen(
                                             } ?: false
                                             
                                             if (!isOnline) {
-                                                Toast.makeText(context, "الأوامر الصوتية تتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.voice_internet_error), Toast.LENGTH_SHORT).show()
                                             } else {
-                                                Toast.makeText(context, "اضغط باستمرار للتحدث", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.voice_hold_to_talk), Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     },
@@ -171,7 +174,7 @@ fun CustomerListScreen(
                                             } ?: false
 
                                             if (!isOnline) {
-                                                Toast.makeText(context, "الأوامر الصوتية تتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.voice_internet_error), Toast.LENGTH_SHORT).show()
                                                 return@detectTapGestures
                                             }
 
@@ -200,20 +203,23 @@ fun CustomerListScreen(
                     if (balance > 0) balance else 0.0
                 }
 
-                Card(modifier = Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp), 
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
-                            Text("إجمالي مديونيات العملاء", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
-                            Text("${formatAmount(totalAllBalances)} $currency", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F))
+                            Text(stringResource(R.string.total_debts_label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${formatAmount(totalAllBalances)} $currency", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                         }
-                        Icon(Icons.Default.Info, null, tint = Color(0xFFD32F2F), modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
                     }
                 }
 
                 OutlinedTextField(
                     value = searchQuery, onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("بحث عن عميل...") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true
+                    placeholder = { Text(stringResource(R.string.search_hint)) }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true
                 )
 
                 if (isLoading) {
@@ -223,41 +229,51 @@ fun CustomerListScreen(
                         items(filteredCustomers) { customer ->
                             val customerTransactions = transactions.filter { it.customerId == customer.customerId }
                             val balance = customerTransactions.filter { it.debt }.sumOf { it.amount } - customerTransactions.filter { !it.debt }.sumOf { it.amount }
-                            CustomerItem(customer, balance, currency, { onCustomerClick(customer) }, { onEditCustomerClick(customer) }, { deleteCustomer(customer.customerId, context) })
+                            val lastDate = customerTransactions.maxOfOrNull { it.date }
+                            
+                            CustomerItem(
+                                customer = customer, 
+                                balance = balance, 
+                                currency = currency, 
+                                lastDate = lastDate,
+                                onClick = { onCustomerClick(customer) }, 
+                                onEdit = { onEditCustomerClick(customer) }, 
+                                onDelete = { deleteCustomer(customer.customerId, context) }
+                            )
                         }
                     }
                 }
             }
         }
-    }
 
-    voiceResult?.let { action ->
-        VoiceConfirmDialog(action, currency, { voiceResult = null }, { 
-            // فحص سقف المديونية قبل الحفظ
-            if (action.isDebt && action.customer.debtLimit > 0) {
-                val customerTransactions = transactions.filter { it.customerId == action.customer.customerId }
-                val currentBalance = customerTransactions.filter { it.debt }.sumOf { it.amount } - 
-                                   customerTransactions.filter { !it.debt }.sumOf { it.amount }
-                
-                if (currentBalance + action.amount > action.customer.debtLimit) {
-                    Toast.makeText(context, "عذراً، العميل تجاوز سقف المديونية المسموح به!", Toast.LENGTH_LONG).show()
-                    return@VoiceConfirmDialog
+        voiceResult?.let { action ->
+            VoiceConfirmDialog(action, currency, { voiceResult = null }, { 
+                // فحص سقف المديونية قبل الحفظ
+                if (action.isDebt && action.customer.debtLimit > 0) {
+                    val customerTransactions = transactions.filter { it.customerId == action.customer.customerId }
+                    val currentBalance = customerTransactions.filter { it.debt }.sumOf { it.amount } - 
+                                       customerTransactions.filter { !it.debt }.sumOf { it.amount }
+                    
+                    if (currentBalance + action.amount > action.customer.debtLimit) {
+                        Toast.makeText(context, context.getString(R.string.voice_debt_limit_error), Toast.LENGTH_LONG).show()
+                        return@VoiceConfirmDialog
+                    }
                 }
-            }
 
-            saveVoiceTransaction(action)
-            voiceResult = null
-            Toast.makeText(context, "تم حفظ العملية بنجاح", Toast.LENGTH_SHORT).show()
-        })
-    }
+                saveVoiceTransaction(action, context)
+                voiceResult = null
+                Toast.makeText(context, context.getString(R.string.voice_success), Toast.LENGTH_SHORT).show()
+            })
+        }
 
-    if (showInstructionsDialog) {
-        VoiceInstructionsDialog(
-            isListening = isListening,
-            onStartListen = { speechRecognizer.startListening(recognizerIntent) },
-            onStopListen = { speechRecognizer.stopListening() },
-            onDismiss = { showInstructionsDialog = false }
-        )
+        if (showInstructionsDialog) {
+            VoiceInstructionsDialog(
+                isListening = isListening,
+                onStartListen = { speechRecognizer.startListening(recognizerIntent) },
+                onStopListen = { speechRecognizer.stopListening() },
+                onDismiss = { showInstructionsDialog = false }
+            )
+        }
     }
 }
 
@@ -270,36 +286,36 @@ fun VoiceInstructionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تعليمات التسجيل الصوتي") },
+        title = { Text(stringResource(R.string.voice_instructions_title)) },
         text = {
             Column {
-                Text("يمكنك تسجيل العمليات بسرعة باستخدام صوتك. يرجى التحدث بصيغة واضحة مثل:")
+                Text(stringResource(R.string.voice_instructions_body))
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(colors = CardDefaults.cardColors(containerColor = Color.LightGray.copy(alpha = 0.1f))) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("\"سجل دين على محمد عمر بمبلغ خمسة آلاف مقابل كرتون عصير\"", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.voice_example_debt), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("\"سدد العميل محمد عمر مبلغ ألفين ريال عبر محفظة جيب\"", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.voice_example_paid), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("• استخدم كلمات (سجل على، قيد دين على، أرصد على) للديون.", style = MaterialTheme.typography.bodySmall)
-                Text("• استخدم كلمات (سدد العميل، تم سداد من، دفع) للسداد.", style = MaterialTheme.typography.bodySmall)
-                Text("• اذكر الملاحظة بعد كلمة (مقابل) أو (عن).", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.voice_debt_keywords_hint), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.voice_paid_keywords_hint), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.voice_note_hint), style = MaterialTheme.typography.bodySmall)
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("للتسجيل: اضغط باستمرار على زر الميكروفون وتحدث، ثم ارفع إصبعك عند الانتهاء.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.voice_record_how_to), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
 
                 // حجز مساحة ثابتة للنص لمنع اهتزاز الواجهة
                 Box(modifier = Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) {
                     if (isListening) {
-                        Text("جاري الاستماع الآن...", color = Color.Red, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.voice_listening), color = Color.Red, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "يمكنك إيقاف ظهور هذه التعليمات من شاشة الإعدادات",
+                    stringResource(R.string.voice_disable_hint),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
@@ -323,7 +339,7 @@ fun VoiceInstructionsDialog(
                             } ?: false
 
                             if (!isOnline) {
-                                Toast.makeText(context, "الأوامر الصوتية تتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.voice_internet_error), Toast.LENGTH_SHORT).show()
                                 return@detectTapGestures
                             }
 
@@ -339,7 +355,7 @@ fun VoiceInstructionsDialog(
                 Icon(Icons.Default.Mic, null, tint = Color.White)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -350,23 +366,51 @@ fun VoiceInstructionsDialogPreview() {
 }
 
 @Composable
-fun CustomerItem(customer: Customer, balance: Double, currency: String, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun CustomerItem(customer: Customer, balance: Double, currency: String, lastDate: Long?, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val dateFormat = remember { SimpleDateFormat("yyyy/MM/dd - hh:mm a", Locale.getDefault()) }
+
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("حذف العميل") },
-            text = { Text("هل أنت متأكد من حذف العميل ${customer.name}؟") },
-            confirmButton = { TextButton(onClick = { onDelete(); showDeleteDialog = false }) { Text("حذف", color = Color.Red) } },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("إلغاء") } }
+            title = { Text(stringResource(R.string.delete_customer_title)) },
+            text = { Text(stringResource(R.string.delete_customer_confirm, customer.name)) },
+            confirmButton = { TextButton(onClick = { onDelete(); showDeleteDialog = false }) { Text(stringResource(R.string.delete), color = Color.Red) } },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable { onClick() }, elevation = CardDefaults.cardElevation(2.dp)) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(customer.name, style = MaterialTheme.typography.titleLarge)
-                Text("${formatAmount(balance)} $currency", style = MaterialTheme.typography.bodyMedium, color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C), fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${formatAmount(balance)} $currency", 
+                        style = MaterialTheme.typography.bodyMedium, 
+                        color = if (balance > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary, 
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    // إظهار أيقونة التنبيه إذا وصل الدين لـ 90% من السقف
+                    if (customer.debtLimit > 0 && balance >= customer.debtLimit * 0.9) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.NotificationsActive, 
+                            contentDescription = "تنبيه اقتراب السقف",
+                            tint = Color(0xFFFF9800),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                if (lastDate != null && lastDate > 0) {
+                    Text(
+                        text = stringResource(R.string.last_transaction_prefix, dateFormat.format(Date(lastDate))),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                }
             }
             Row {
                 IconButton(onClick = { makeCall(context, customer.phoneNumber) }) { Icon(Icons.Default.Call, "اتصال", tint = Color(0xFF388E3C)) }
@@ -388,32 +432,50 @@ data class VoiceAction(val customer: Customer, val amount: Double, val isDebt: B
 fun VoiceConfirmDialog(action: VoiceAction, currency: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تأكيد العملية الصوتية") },
+        title = { Text(stringResource(R.string.voice_confirm_title)) },
         text = {
             Column {
-                Text("لقد قلت: \"${action.rawText}\"", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(stringResource(R.string.voice_confirm_said, action.rawText), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("العميل: ${action.customer.name}", fontWeight = FontWeight.Bold)
-                Text("النوع: ${if (action.isDebt) "دين (+)" else "سداد (-)"}")
-                Text("المبلغ: ${formatAmount(action.amount)} $currency", color = if (action.isDebt) Color.Red else Color(0xFF388E3C), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.voice_confirm_customer, action.customer.name), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.voice_confirm_type, if (action.isDebt) stringResource(R.string.voice_type_debt) else stringResource(R.string.voice_type_paid)))
+                Text(stringResource(R.string.voice_confirm_amount, "${formatAmount(action.amount)} $currency"), color = if (action.isDebt) Color.Red else Color(0xFF388E3C), fontWeight = FontWeight.Bold)
                 if (action.note.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("الملاحظة: ${action.note}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text(stringResource(R.string.voice_confirm_note, action.note), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
             }
         },
-        confirmButton = { Button(onClick = onConfirm) { Text("تأكيد وحفظ") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.voice_confirm_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
-fun voiceAnalysis(text: String, customers: List<Customer>): VoiceAction? {
+fun voiceAnalysis(text: String, customers: List<Customer>, context: Context): VoiceAction? {
     if (text.isEmpty() || customers.isEmpty()) return null
-    val cleanText = text.trim()
-    val debtKeywords = listOf("سجل على", "قيد دين على", "أرصد على", "سجل", "دين", "اخذ", "عليه", "اكتب", "قيد", "ارفع", "مطلوب", "تسلف", "شل", "حساب", "فاتورة", "اديله", "اديلو", "بز")
-    val paidKeywords = listOf("سدد العميل", "تم سداد من", "سدد", "دفع", "جاب", "استلمت", "حاسب", "له", "وصلني", "قبضت", "اعطاني", "نزل", "خصم", "وفاء", "تصفية", "رجع", "رد")
+    val cleanText = text.trim().lowercase()
+    val isEnglish = Locale.getDefault().language == "en"
+
+    val debtKeywords = if (isEnglish) {
+        listOf("record", "debt", "on", "bill", "invoice", "took")
+    } else {
+        listOf("سجل على", "قيد دين على", "أرصد على", "سجل", "دين", "اخذ", "عليه", "اكتب", "قيد", "ارفع", "مطلوب", "تسلف", "شل", "حساب", "فاتورة", "اديله", "اديلو", "بز")
+    }
+    
+    val paidKeywords = if (isEnglish) {
+        listOf("paid", "received from", "payment", "cleared", "settled")
+    } else {
+        listOf("سدد العميل", "تم سداد من", "سدد", "دفع", "جاب", "استلمت", "حاسب", "له", "وصلني", "قبضت", "اعطاني", "نزل", "خصم", "وفاء", "تصفية", "رجع", "رد")
+    }
+
     val isDebt = debtKeywords.any { cleanText.contains(it) } || !paidKeywords.any { cleanText.contains(it) }
-    val noteKeywords = listOf("بواسطة محفظة", "عبر محفظة", "شيك عبر بنك", "بشيك من", "حواله", "محفظة", "عبر", "مقابل", "عن", "بسبب", "حق", "بخصوص", "عشان", "عشان خاطر", "لجل", "وصف", "قيمة", "غرض")
+    
+    val noteKeywords = if (isEnglish) {
+        listOf("for", "about", "regarding", "description", "note")
+    } else {
+        listOf("بواسطة محفظة", "عبر محفظة", "شيك عبر بنك", "بشيك من", "حواله", "محفظة", "عبر", "مقابل", "عن", "بسبب", "حق", "بخصوص", "عشان", "عشان خاطر", "لجل", "وصف", "قيمة", "غرض")
+    }
+
     var note = ""
     var textForAmount = cleanText
     for (keyword in noteKeywords) {
@@ -426,24 +488,38 @@ fun voiceAnalysis(text: String, customers: List<Customer>): VoiceAction? {
             }
         }
     }
+
     val amountRegex = "\\d+".toRegex()
     val matches = amountRegex.findAll(textForAmount).toList()
     var amount = if (matches.isNotEmpty()) matches[0].value.toDoubleOrNull() ?: 0.0 else 0.0
+    
     if (amount == 0.0) {
-        when {
-            textForAmount.contains("مليون") -> amount = 1000000.0
-            textForAmount.contains("ألفين") || textForAmount.contains("الفين") -> amount = 2000.0
-            textForAmount.contains("ألف") || textForAmount.contains("الف") -> {
-                amount = when {
-                    textForAmount.contains("خمسة") || textForAmount.contains("خمس") -> 5000.0
-                    textForAmount.contains("عشرة") || textForAmount.contains("عشر") -> 10000.0
-                    textForAmount.contains("مية") || textForAmount.contains("مائة") -> 100000.0
-                    else -> 1000.0
+        if (isEnglish) {
+            when {
+                textForAmount.contains("million") -> amount = 1000000.0
+                textForAmount.contains("thousand") -> {
+                    amount = 1000.0
+                    if (textForAmount.contains("five")) amount = 5000.0
+                    if (textForAmount.contains("ten")) amount = 10000.0
                 }
             }
+        } else {
+            when {
+                textForAmount.contains("مليون") -> amount = 1000000.0
+                textForAmount.contains("ألفين") || textForAmount.contains("الفين") -> amount = 2000.0
+                textForAmount.contains("ألف") || textForAmount.contains("الف") -> {
+                    amount = when {
+                        textForAmount.contains("خمسة") || textForAmount.contains("خمس") -> 5000.0
+                        textForAmount.contains("عشرة") || textForAmount.contains("عشر") -> 10000.0
+                        textForAmount.contains("مية") || textForAmount.contains("مائة") -> 100000.0
+                        else -> 1000.0
+                    }
+                }
+            }
+            if (textForAmount.contains("ونص")) amount += (amount / 2).takeIf { amount > 0 } ?: 150.0
         }
-        if (textForAmount.contains("ونص")) amount += (amount / 2).takeIf { amount > 0 } ?: 150.0
     }
+
     val foundCustomer = customers.map { customer ->
         val nameWords = customer.name.lowercase().split(" ").filter { it.length > 2 }
         var score = 0
@@ -451,13 +527,14 @@ fun voiceAnalysis(text: String, customers: List<Customer>): VoiceAction? {
         if (cleanText.contains(customer.name, ignoreCase = true)) score += 50
         customer to score
     }.filter { it.second > 0 }.maxByOrNull { it.second }?.first
+
     return if (foundCustomer != null && amount > 0) VoiceAction(foundCustomer, amount, isDebt, note, cleanText) else null
 }
 
-fun saveVoiceTransaction(action: VoiceAction) {
+fun saveVoiceTransaction(action: VoiceAction, context: Context) {
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
     val id = UUID.randomUUID().toString()
-    val trans = Transaction(id, action.customer.customerId, auth.currentUser?.uid ?: "", action.amount, action.note.ifEmpty { "تم التسجيل صوتياً" }, System.currentTimeMillis(), action.isDebt)
+    val trans = Transaction(id, action.customer.customerId, auth.currentUser?.uid ?: "", action.amount, action.note.ifEmpty { context.getString(R.string.whatsapp_sent_voice) }, System.currentTimeMillis(), action.isDebt)
     db.collection("transactions").document(id).set(trans)
 }

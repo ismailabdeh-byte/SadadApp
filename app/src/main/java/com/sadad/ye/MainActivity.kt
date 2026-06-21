@@ -1,10 +1,15 @@
 package com.sadad.ye
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -12,6 +17,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.google.firebase.Timestamp
@@ -22,27 +32,46 @@ import com.sadad.ye.models.Customer
 import com.sadad.ye.models.User
 import com.sadad.ye.ui.*
 import com.sadad.ye.ui.theme.سدادTheme
+import com.sadad.ye.utils.NotificationUtils
 import java.util.*
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NotificationUtils.createNotificationChannel(this)
         enableEdgeToEdge()
         setContent {
-            سدادTheme {
-                val auth = FirebaseAuth.getInstance()
-                val db = FirebaseFirestore.getInstance()
-                
-                var authInitialized by remember { mutableStateOf(false) }
-                var currentUserId by remember { mutableStateOf(auth.currentUser?.uid ?: "") }
-                
-                var subscriptionStatus by remember { mutableStateOf<Boolean?>(null) }
-                var currentUserData by remember { mutableStateOf<User?>(null) }
-                var appSettings by remember { mutableStateOf(AppSettings()) }
-                
+            val context = LocalContext.current
+            
+            // طلب إذن الإشعارات لأندرويد 13+
+            val permissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { _ -> }
+
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
+
+            val auth = remember { FirebaseAuth.getInstance() }
+            val db = remember { FirebaseFirestore.getInstance() }
+            
+            var authInitialized by remember { mutableStateOf(false) }
+            var currentUserId by remember { mutableStateOf(auth.currentUser?.uid ?: "") }
+            
+            var subscriptionStatus by remember { mutableStateOf<Boolean?>(null) }
+            var currentUserData by remember { mutableStateOf<User?>(null) }
+            var appSettings by remember { mutableStateOf(AppSettings()) }
+
+            val isSystemInDark = isSystemInDarkTheme()
+            val useDarkTheme = currentUserData?.isDarkMode ?: isSystemInDark
+            
+            سدادTheme(darkTheme = useDarkTheme) {
                 // حالة قفل التطبيق
                 var isAppLocked by remember { mutableStateOf(true) }
-                
                 var currentScreen by remember { mutableStateOf("list") }
                 var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
 
@@ -57,7 +86,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // الطريقة الحديثة لإعادة قفل التطبيق فور الخروج منه (ON_STOP)
+                // إعادة قفل التطبيق فور الخروج منه
                 LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
                     if (currentUserData?.isAppLockEnabled == true) {
                         isAppLocked = true
@@ -80,21 +109,14 @@ class MainActivity : ComponentActivity() {
                     onDispose { auth.removeAuthStateListener(listener) }
                 }
 
-                // مراقبة حية لبيانات المستخدم والاشتراك مع دعم العمل بدون إنترنت
+                // مراقبة بيانات المستخدم والاشتراك
                 DisposableEffect(currentUserId, appSettings.trialDays) {
                     if (currentUserId.isEmpty()) {
                         subscriptionStatus = null
                         onDispose {}
                     } else {
                         val userRef = db.collection("users").document(currentUserId)
-                        
-                        // استخدام SnapshotListener مع معالجة البيانات المحلية (Metadata)
-                        val registration = userRef.addSnapshotListener { snapshot, error ->
-                            if (error != null) {
-                                // في حالة الخطأ، نحاول الاعتماد على البيانات المحلية إذا كانت موجودة
-                                return@addSnapshotListener
-                            }
-
+                        val registration = userRef.addSnapshotListener { snapshot, _ ->
                             if (snapshot != null && snapshot.exists()) {
                                 val user = snapshot.toObject(User::class.java)
                                 currentUserData = user
@@ -116,8 +138,6 @@ class MainActivity : ComponentActivity() {
                                     subscriptionStatus = false
                                 }
                             } else if (snapshot != null && !snapshot.exists()) {
-                                // إذا كان المستخدم جديداً تماماً ولا يوجد اتصال، قد لا نصل هنا
-                                // لكن عند وجود إنترنت، سنقوم بإنشاء الحساب
                                 if (!snapshot.metadata.isFromCache) {
                                     val newUser = User(userId = currentUserId, createdAt = Timestamp.now())
                                     userRef.set(newUser)
@@ -139,6 +159,7 @@ class MainActivity : ComponentActivity() {
                         currentUserData?.isAppLockEnabled == true && isAppLocked -> {
                             AppLockScreen(
                                 correctPin = currentUserData?.appLockPin ?: "1234",
+                                isBiometricEnabled = currentUserData?.isBiometricEnabled ?: false,
                                 onUnlock = { isAppLocked = false }
                             )
                         }
@@ -146,6 +167,7 @@ class MainActivity : ComponentActivity() {
                             currentScreen = currentScreen,
                             selectedCustomer = selectedCustomer,
                             userData = currentUserData,
+                            appSettings = appSettings,
                             onNavigate = { screen, customer ->
                                 currentScreen = screen
                                 selectedCustomer = customer
@@ -170,9 +192,10 @@ fun MainNavigation(
     currentScreen: String,
     selectedCustomer: Customer?,
     userData: User?,
+    appSettings: AppSettings,
     onNavigate: (String, Customer?) -> Unit
 ) {
-    val currency = userData?.defaultCurrency ?: "ريال"
+    val currency = userData?.defaultCurrency ?: stringResource(R.string.currency_default)
     
     when (currentScreen) {
         "list" -> CustomerListScreen(
@@ -195,11 +218,12 @@ fun MainNavigation(
             EditCustomerScreen(customer = it, onBack = { onNavigate("list", null) }, currency = currency)
         }
         "details" -> selectedCustomer?.let {
-            CustomerDetailsScreen(customer = it, onBack = { onNavigate("list", null) }, currency = currency)
+            CustomerDetailsScreen(customer = it, onBack = { onNavigate("list", null) }, currency = currency, user = userData)
         }
         "daily_report" -> DailyReportScreen(onBack = { onNavigate("list", null) }, currency = currency)
         "settings" -> SettingsScreen(
             user = userData,
+            appSettings = appSettings,
             onBack = { onNavigate("list", null) },
             onAdminClick = { onNavigate("admin", null) }
         )

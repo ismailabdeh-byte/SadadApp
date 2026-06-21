@@ -11,12 +11,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.sadad.ye.R
 import com.sadad.ye.models.AppSettings
 import com.sadad.ye.utils.SubscriptionUtils
 import java.util.*
@@ -79,7 +81,7 @@ fun ActivationScreen() {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("طرق الدفع المتاحة:", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.payment_methods_available), fontWeight = FontWeight.Bold)
                 Text(appSettings.paymentMethods)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -95,7 +97,7 @@ fun ActivationScreen() {
         OutlinedTextField(
             value = code,
             onValueChange = { code = it },
-            label = { Text("أدخل كود التفعيل هنا") },
+            label = { Text(stringResource(R.string.enter_code_here)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -112,7 +114,7 @@ fun ActivationScreen() {
                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Toast.makeText(context, "يرجى إدخال كود صحيح", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.enter_valid_code), Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -121,7 +123,7 @@ fun ActivationScreen() {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
             } else {
-                Text("تفعيل الآن")
+                Text(stringResource(R.string.activate_now))
             }
         }
     }

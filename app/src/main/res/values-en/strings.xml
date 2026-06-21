@@ -1,0 +1,317 @@
+<resources>
+    <string name="app_name">Sadad</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="admin_panel">Admin Panel</string>
+    <string name="admin_panel_subtitle">Create and manage activation codes</string>
+    <string name="account_profile">Account &amp; Profile</string>
+    <string name="store_name">Store / Institution Name</string>
+    <string name="business_address">Business Address</string>
+    <string name="password">Password</string>
+    <string name="change_password_subtitle">Change your password</string>
+    <string name="app_settings">App Settings</string>
+    <string name="language">App Language</string>
+    <string name="arabic">العربية (Arabic)</string>
+    <string name="english">الإنجليزية (English)</string>
+    <string name="choose_language">Choose Language</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="dark_mode_on">Always On</string>
+    <string name="dark_mode_off">Off (Light Mode)</string>
+    <string name="dark_mode_auto">Automatic (System Default)</string>
+    <string name="default_currency">Default Currency</string>
+    <string name="voice_instructions">Voice Instructions</string>
+    <string name="voice_instructions_subtitle">Show usage instructions when clicking the microphone</string>
+    <string name="app_lock">App Lock</string>
+    <string name="app_lock_subtitle">Request PIN when opening the app</string>
+    <string name="use_biometric">Use Biometric (Face/Fingerprint)</string>
+    <string name="use_biometric_subtitle">Unlock quickly using biometrics</string>
+    <string name="change_pin">Change Entry PIN</string>
+    <string name="current_pin_prefix">Current PIN: %1$s</string>
+    <string name="debt_notifications">Debt Notifications</string>
+    <string name="auto_notification_system">Auto-notification System</string>
+    <string name="auto_notification_subtitle">Alert when customer approaches debt ceiling (10% remaining)</string>
+    <string name="reminder_template">Reminder Template</string>
+    <string name="reminder_template_subtitle">Edit the ready-made WhatsApp reminder text</string>
+    <string name="subscription">Subscription</string>
+    <string name="subscription_status">Subscription Status</string>
+    <string name="expiry_date_prefix">Expires on: %1$s</string>
+    <string name="trial_period">Trial Period (1 Day)</string>
+    <string name="activate_new_code">Activate New Code</string>
+    <string name="activate">Activate</string>
+    <string name="code_too_short">Code is too short</string>
+    <string name="data_backup">Data &amp; Backup</string>
+    <string name="create_backup">Create Backup (Export)</string>
+    <string name="create_backup_subtitle">Save all data and debts in a file to share or keep</string>
+    <string name="restore_backup">Restore Backup (Import)</string>
+    <string name="restore_backup_subtitle">Choose a previous backup file to restore data</string>
+    <string name="export_pdf">Export PDF Report</string>
+    <string name="export_pdf_subtitle">Share a comprehensive account statement for customers</string>
+    <string name="export_excel">Export Excel File</string>
+    <string name="export_excel_subtitle">Save data in CSV format compatible with Excel</string>
+    <string name="support_help">Support &amp; Help</string>
+    <string name="contact_support">Contact Technical Support</string>
+    <string name="support_whatsapp_subtitle">Help via WhatsApp</string>
+    <string name="whatsapp_support_message">Hello, I need help with the Sadad app</string>
+    <string name="whatsapp_error">Failed to open WhatsApp</string>
+    <string name="logout">Logout</string>
+    <string name="delete_account">Permanently Delete Account</string>
+    <string name="edit_store_name">Edit Store Name</string>
+    <string name="name">Name</string>
+    <string name="save">Save</string>
+    <string name="save_success">Saved successfully</string>
+    <string name="send">Send</string>
+    <string name="add">Add</string>
+    <string name="delete">Delete</string>
+    <string name="edit_business_address">Edit Business Address</string>
+    <string name="address">Address</string>
+    <string name="change_pin_title">Change PIN</string>
+    <string name="new_pin_label">New PIN (4 digits)</string>
+    <string name="confirm_delete">Confirm Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete_account_confirmation">Are you sure? All your data and customers will be permanently deleted.</string>
+    <string name="choose_currency">Choose Currency</string>
+    <string name="change_password_title">Change Password</string>
+    <string name="new_password_label">New Password</string>
+    <string name="update">Update</string>
+    <string name="updated_successfully">Updated successfully</string>
+    <string name="currency_yer">Yemeni Rial (YER)</string>
+    <string name="currency_default">Rial</string>
+    <string name="currency_sar">Saudi Rial (SAR)</string>
+    <string name="currency_aed">Emirati Dirham (AED)</string>
+    <string name="currency_usd">US Dollar (USD)</string>
+    <string name="currency_egp">Egyptian Pound (EGP)</string>
+    <string name="edit_reminder_template">Edit Reminder Template</string>
+    <string name="template_hint">Use {name} for customer name and {balance} for balance.</string>
+    <string name="default_user_name">Sadad User</string>
+
+    <!-- Voice Recording -->
+    <string name="voice_instructions_title">Voice Recording Instructions</string>
+    <string name="voice_instructions_body">You can quickly record transactions using your voice. Please speak clearly, for example:</string>
+    <string name="voice_example_debt">\"Record a debt for John Doe for five thousand for a box of juice\"</string>
+    <string name="voice_example_paid">\"The customer John Doe paid two thousand riyals via wallet\"</string>
+    <string name="voice_debt_keywords_hint">• Use words like (record, debt, on) for debts.</string>
+    <string name="voice_paid_keywords_hint">• Use words like (paid, received from, payment) for payments.</string>
+    <string name="voice_note_hint">• Mention the note after words like (for, about, regarding).</string>
+    <string name="voice_record_how_to">To record: Press and hold the microphone button and speak, then release your finger when finished.</string>
+    <string name="voice_listening">Listening now...</string>
+    <string name="voice_disable_hint">You can stop these instructions from the settings screen</string>
+    <string name="voice_confirm_title">Confirm Voice Transaction</string>
+    <string name="voice_confirm_said">You said: \"%1$s\"</string>
+    <string name="voice_confirm_customer">Customer: %1$s</string>
+    <string name="voice_confirm_type">Type: %1$s</string>
+    <string name="voice_confirm_amount">Amount: %1$s</string>
+    <string name="voice_confirm_note">Note: %1$s</string>
+    <string name="voice_type_debt">Debt (+)</string>
+    <string name="voice_type_paid">Paid (-)</string>
+    <string name="voice_confirm_save">Confirm and Save</string>
+    <string name="voice_success">Transaction saved successfully</string>
+    <string name="voice_debt_limit_error">Sorry, the customer has exceeded the allowed debt ceiling!</string>
+    <string name="voice_internet_error">Voice commands require an internet connection</string>
+    <string name="voice_hold_to_talk">Press and hold to speak</string>
+
+    <!-- Export & Backup -->
+    <string name="backup_file_prefix">Sadad_Backup_</string>
+    <string name="share_backup_title">Save backup via...</string>
+    <string name="backup_success">Data restored successfully</string>
+    <string name="backup_error">Failed to save data: %1$s</string>
+    <string name="backup_read_error">Error reading file: %1$s</string>
+    <string name="backup_export_error">Failed to create backup: %1$s</string>
+
+    <string name="report_file_name">Sadad_Report</string>
+    <string name="report_title">Comprehensive Debt Report</string>
+    <string name="report_customer_name">Customer Name</string>
+    <string name="report_phone">Phone Number</string>
+    <string name="report_balance">Amount Due</string>
+    <string name="report_date_prefix">Report Date: %1$s</string>
+    <string name="report_share_title">Share report via:</string>
+    <string name="report_export_pdf_error">Failed to export PDF: %1$s</string>
+    <string name="report_export_excel_error">Failed to export Excel: %1$s</string>
+    <string name="report_excel_header_total">Debt Report: %1$s</string>
+    <string name="report_excel_header_columns">Customer Name,Phone Number,Total Debt</string>
+
+    <!-- WhatsApp & Reminder -->
+    <string name="default_whatsapp_template">Dear {name}, we would like to remind you that your debt balance is {balance}. Thank you for dealing with us.</string>
+    <string name="whatsapp_sent_voice">Recorded via voice</string>
+
+    <!-- Customer List Screen -->
+    <string name="app_title">Sadad - Customer List</string>
+    <string name="total_debts_label">Total Customer Debts</string>
+    <string name="search_hint">Search for a customer...</string>
+    <string name="delete_customer_title">Delete Customer</string>
+    <string name="delete_customer_confirm">Are you sure you want to delete customer %1$s?</string>
+    <string name="last_transaction_prefix">Last transaction: %1$s</string>
+    <string name="customer_deleted_success">Deleted successfully</string>
+
+    <!-- Customer Details Screen -->
+    <string name="phone_label">Phone: %1$s</string>
+    <string name="current_balance_label">Current Balance</string>
+    <string name="debt_limit_label">Debt Limit: %1$s %2$s</string>
+    <string name="transaction_history_label">Transaction History</string>
+    <string name="add_record">Add Record</string>
+    <string name="no_transactions">No recorded transactions</string>
+    <string name="latest">Latest</string>
+    <string name="earliest">Earliest</string>
+    <string name="send_notice_title">Send Notification</string>
+    <string name="send_notice_confirm">Do you want to send the details of this transaction to the customer via WhatsApp?</string>
+    <string name="delete_transaction_title">Delete Transaction</string>
+    <string name="delete_transaction_confirm">Are you sure you want to delete this transaction?</string>
+    <string name="clear_history_title">Clear History</string>
+    <string name="clear_history_confirm">All records will be deleted and replaced with a previous balance. Are you sure?</string>
+    <string name="clear_history_success">Cleared successfully</string>
+    <string name="share_report_title">Share Report</string>
+    <string name="full_account_statement">Full Account Statement</string>
+    <string name="date_range_statement">Account Statement (Date Range)</string>
+    <string name="send_reminder">Send Reminder Message</string>
+    <string name="debt_only_report">Debt Only Report</string>
+    <string name="close">Close</string>
+    <string name="select_period_title">Select Report Period</string>
+    <string name="from_date">From Date:</string>
+    <string name="to_date">To Date:</string>
+    <string name="generate_report">Generate Report</string>
+    <string name="debt_label">Debt</string>
+    <string name="paid_label">Paid</string>
+    <string name="mark_as_sent_manual">Mark as Sent (Without sending)</string>
+    <string name="edit">Edit</string>
+    <string name="add_new_transaction_title">Add New Transaction</string>
+    <string name="amount_label">Amount</string>
+    <string name="date_label">Date</string>
+    <string name="note_label">Note</string>
+    <string name="invalid_data">Invalid data</string>
+    <string name="debt_limit_exceeded">Debt limit exceeded!</string>
+    <string name="previous_balance_note">Previous Balance</string>
+    <string name="send_previous_first_error">Please send previous transactions first to maintain account sequence on WhatsApp, or mark them as sent from the menu to unlock.</string>
+    <string name="no_internet_error">No internet connection to send notification</string>
+
+    <!-- WhatsApp Content -->
+    <string name="whatsapp_report_for">Account Statement: %1$s</string>
+    <string name="whatsapp_period">Period: From %1$s to %2$s</string>
+    <string name="whatsapp_previous_balance">Previous Balance: %1$s %2$s %3$s</string>
+    <string name="whatsapp_owe_you">(To you)</string>
+    <string name="whatsapp_you_owe">(Owed by you)</string>
+    <string name="whatsapp_balance_status_owe_you">To you</string>
+    <string name="whatsapp_balance_status_you_owe">Owed by you</string>
+    <string name="whatsapp_balance_status_zero">Zero</string>
+    <string name="whatsapp_final_balance_zero">Final Balance: Full balance paid</string>
+    <string name="whatsapp_final_balance_prefix">Total Balance %1$s: %2$s %3$s</string>
+    <string name="whatsapp_single_debt_title">Debt Transaction Notification</string>
+    <string name="whatsapp_single_paid_title">Payment Transaction Notification</string>
+    <string name="whatsapp_amount_you_owe">Amount you owe</string>
+    <string name="whatsapp_amount_owe_you">Amount to you</string>
+    <string name="whatsapp_new_balance_you_owe">New balance you owe: %1$s %2$s</string>
+    <string name="whatsapp_new_balance_owe_you">New balance to you: %1$s %2$s</string>
+    <string name="whatsapp_new_balance_zero">Balance: 0 %1$s</string>
+    <string name="whatsapp_error_send">Failed to send</string>
+    <string name="whatsapp_error_open">Failed to open WhatsApp</string>
+    <string name="whatsapp_full_statement_title">Full Account Statement</string>
+    <string name="whatsapp_debt_notice_title">Debt Balance Notification</string>
+    <string name="fill_required_fields">Please fill in the name and phone number</string>
+    <string name="customer_added_success">Customer added successfully</string>
+    <string name="error_occurred">An error occurred</string>
+    <string name="customer_name_exists">Customer name is already registered</string>
+    <string name="phone_number_exists">Phone number is already registered</string>
+
+    <!-- Add Customer Screen -->
+    <string name="add_new_customer">Add New Customer</string>
+    <string name="customer_name">Customer Name</string>
+    <string name="phone_number">Phone Number</string>
+    <string name="previous_debt_balance">Previous debt balance (%1$s)</string>
+    <string name="initial_balance_date">Opening balance date</string>
+    <string name="debt_limit_label_with_currency">Debt Limit (%1$s)</string>
+    <string name="debt_limit_hint">Leave blank for no limit</string>
+    <string name="add_customer_button">Add Customer</string>
+    <string name="import_contacts">Import from Contacts</string>
+    <string name="contacts_permission_required">Contacts access permission must be granted</string>
+    <string name="contacts_import_failed">Failed to import contact</string>
+
+    <!-- Edit Customer Screen -->
+    <string name="edit_customer_details">Edit Customer Data</string>
+    <string name="update_success">Data updated successfully</string>
+    <string name="update_failed">Failed to update data</string>
+    <string name="fill_all_fields">Please fill in all fields</string>
+    <string name="phone_number_exists_other">This phone number is already registered for another customer</string>
+    <string name="save_changes">Save Changes</string>
+
+    <!-- Daily Report Screen -->
+    <string name="daily_report">Daily Report</string>
+    <string name="share">Share</string>
+    <string name="report_date_label">Report Date:</string>
+    <string name="total_debts">Total Debts</string>
+    <string name="total_collection">Total Collection</string>
+    <string name="no_transactions_date">No transactions for this date</string>
+    <string name="unknown_customer">Unknown customer</string>
+    <string name="daily_report_title">Daily Transaction Report - Sadad</string>
+    <string name="net_total">Net: %1$s %2$s</string>
+    <string name="collection_type">Collection (-)</string>
+
+    <!-- Admin Panel -->
+    <string name="admin_panel_title">Super Admin Panel</string>
+    <string name="system_stats">System Statistics</string>
+    <string name="users_stat">Users</string>
+    <string name="codes_stat">Codes</string>
+    <string name="maintenance_tools">Maintenance Tools</string>
+    <string name="repair_daily_data">Repair Daily Report Data</string>
+    <string name="repair_hint">Use this button to link old transactions to your account so they appear in reports.</string>
+    <string name="generate_activation_code">Generate Activation Code</string>
+    <string name="days_count">Number of Days</string>
+    <string name="days">Days</string>
+    <string name="generate">Generate</string>
+    <string name="generate_success">Generated successfully</string>
+    <string name="new_code_label">New Code: %1$s</string>
+    <string name="activation_settings_title">Activation &amp; Trial Screen Settings</string>
+    <string name="trial_days_label">Trial Period Days</string>
+    <string name="activation_title_label">Activation Title</string>
+    <string name="activation_desc_label">Activation Description</string>
+    <string name="payment_methods_label">Payment Methods</string>
+    <string name="contact_instructions_label">Contact Instructions (After payment)</string>
+    <string name="support_whatsapp_label">WhatsApp Number for Tech Support</string>
+    <string name="save_and_update_app">Save and Update Subscribers App</string>
+    <string name="recent_codes">Recent Codes</string>
+    <string name="code_status_used">Used</string>
+    <string name="code_status_ready">Ready</string>
+    <string name="no_customers_to_repair">No customers to repair their data</string>
+    <string name="repair_success">%1$d old transactions updated successfully.</string>
+    <string name="repair_partial_error">Scan completed with some errors.</string>
+    <string name="repair_completed">Scan completed.</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="whatsapp_code_message">Your Sadad activation code: %1$s\nDuration: %2$d days</string>
+
+    <!-- Auth Screen -->
+    <string name="password_reset_title">Password Recovery</string>
+    <string name="create_account_title">Create Sadad Account</string>
+    <string name="login_title">Login</string>
+    <string name="store_user_name">Store / User Name</string>
+    <string name="email_label">Email</string>
+    <string name="password_label">Password</string>
+    <string name="confirm_password_label">Confirm Password</string>
+    <string name="forgot_password_q">Forgot Password?</string>
+    <string name="or"> or </string>
+    <string name="google_login">Login with Google</string>
+    <string name="have_account">Have an account? Login</string>
+    <string name="no_account">Don\'t have an account? Register now</string>
+    <string name="enter_email">Enter your email</string>
+    <string name="reset_link_sent">Reset link sent to your email</string>
+    <string name="send_reset_link">Send Reset Link</string>
+    <string name="back_to_login">Back to Login</string>
+    <string name="login_failed">Login failed</string>
+    <string name="passwords_not_matching">Passwords do not match</string>
+    <string name="fill_all_data">Please fill in all data</string>
+
+    <!-- Activation Screen -->
+    <string name="payment_methods_available">Available Payment Methods:</string>
+    <string name="enter_code_here">Enter activation code here</string>
+    <string name="enter_valid_code">Please enter a valid code</string>
+    <string name="activate_now">Activate Now</string>
+
+    <!-- App Lock Screen -->
+    <string name="app_protected_title">Sadad App is Protected</string>
+    <string name="enter_pin_to_continue">Please enter entry code to continue</string>
+    <string name="pin_label">PIN Code (4 digits)</string>
+    <string name="wrong_pin">Incorrect code</string>
+    <string name="use_biometric_desc">Use Biometric</string>
+    <string name="click_to_use_biometric">Click to use biometric</string>
+    <string name="app_lock_hint">Note: This code protects your data from intruders on your phone</string>
+    <string name="unlock_title">Unlock Sadad App</string>
+    <string name="unlock_subtitle">Use fingerprint to login quickly</string>
+</resources>

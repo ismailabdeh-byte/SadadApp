@@ -2,7 +2,6 @@ package com.sadad.ye.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,17 +21,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
+import com.sadad.ye.R
 import com.sadad.ye.models.ActivationCode
 import com.sadad.ye.models.AppSettings
 import java.net.URLEncoder
@@ -62,6 +60,7 @@ fun AdminPanelScreen(onBack: () -> Unit) {
     var activationDescription by remember { mutableStateOf("") }
     var paymentMethods by remember { mutableStateOf("") }
     var contactInfo by remember { mutableStateOf("") }
+    var supportPhone by remember { mutableStateOf("") }
     var trialDays by remember { mutableStateOf("1") }
     var isSavingSettings by remember { mutableStateOf(false) }
     
@@ -91,180 +90,188 @@ fun AdminPanelScreen(onBack: () -> Unit) {
                     activationDescription = it.activationDescription
                     paymentMethods = it.paymentMethods
                     contactInfo = it.contactInfo
+                    supportPhone = it.supportPhone
                     trialDays = it.trialDays.toString()
                 }
             }
         }
     }
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("لوحة التحكم العليا") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                        }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.admin_panel_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
-                )
-            }
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // قسم الإحصائيات
+            Text(stringResource(R.string.system_stats), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // قسم الإحصائيات
-                Text("إحصائيات النظام", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    StatCard("المستخدمين", totalUsers.toString(), Icons.Default.Group, Color(0xFF2196F3), Modifier.weight(1f))
-                    StatCard("الأكواد", "$usedCodes/$totalCodes", Icons.Default.Key, Color(0xFFFF9800), Modifier.weight(1f))
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
-                // قسم إصلاح البيانات
-                Text("أدوات الصيانة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        isRepairing = true
-                        repairTransactionData(db) { msg ->
-                            isRepairing = false
-                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF673AB7)),
-                    enabled = !isRepairing
-                ) {
-                    if (isRepairing) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    else {
-                        Icon(Icons.Default.Build, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("إصلاح بيانات التقارير اليومية")
-                    }
-                }
-                Text("استخدم هذا الزر لربط العمليات القديمة بحسابك لكي تظهر في التقارير.", style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
-
-                Text("توليد كود اشتراك", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = durationDays,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) durationDays = it },
-                        label = { Text("عدد الأيام") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val days = durationDays.toIntOrNull() ?: 0
-                            if (days > 0) {
-                                isGenerating = true
-                                val newCode = (100000..999999).random().toString()
-                                val actCode = ActivationCode(code = newCode, durationDays = days, isUsed = false, createdAt = Timestamp.now())
-                                db.collection("activation_codes").document(newCode).set(actCode)
-                                    .addOnSuccessListener {
-                                        generatedCode = newCode
-                                        isGenerating = false
-                                        Toast.makeText(context, "تم التوليد بنجاح", Toast.LENGTH_SHORT).show()
-                                    }
-                            }
-                        },
-                        modifier = Modifier.height(56.dp),
-                        enabled = !isGenerating
-                    ) {
-                        if (isGenerating) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
-                        else Text("توليد")
-                    }
-                }
-
-                if (generatedCode.isNotEmpty()) {
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("كود جديد: $generatedCode", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            IconButton(onClick = { clipboardManager.setText(AnnotatedString(generatedCode)) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null)
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
-
-                Text("إعدادات شاشة التفعيل والتجربة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(value = trialDays, onValueChange = { if (it.all { c -> c.isDigit() }) trialDays = it }, label = { Text("أيام الفترة التجريبية") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = activationTitle, onValueChange = { activationTitle = it }, label = { Text("عنوان التفعيل") }, modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = activationDescription, onValueChange = { activationDescription = it }, label = { Text("وصف التفعيل") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = paymentMethods, onValueChange = { paymentMethods = it }, label = { Text("طرق الدفع") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = contactInfo, onValueChange = { contactInfo = it }, label = { Text("رقم الواتساب") }, modifier = Modifier.fillMaxWidth())
-                
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = {
-                        isSavingSettings = true
-                        val settings = AppSettings(activationTitle, activationDescription, paymentMethods, contactInfo, trialDays.toIntOrNull() ?: 1)
-                        db.collection("config").document("app_settings").set(settings)
-                            .addOnSuccessListener {
-                                isSavingSettings = false
-                                Toast.makeText(context, "تم الحفظ بنجاح", Toast.LENGTH_SHORT).show()
-                            }
-                            .addOnFailureListener { e ->
-                                isSavingSettings = false
-                                Toast.makeText(context, "فشل الحفظ: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                            }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSavingSettings
-                ) {
-                    if (isSavingSettings) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
-                    else {
-                        Icon(Icons.Default.Save, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("حفظ وتحديث تطبيق المشتركين")
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
-
-                Text("الأكواد الأخيرة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                if (isLoadingList) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    codesList.forEach { item ->
-                        CodeItem(item, context)
-                    }
-                }
-                Spacer(modifier = Modifier.height(32.dp))
+                StatCard(stringResource(R.string.users_stat), totalUsers.toString(), Icons.Default.Group, Color(0xFF2196F3), Modifier.weight(1f))
+                StatCard(stringResource(R.string.codes_stat), "$usedCodes/$totalCodes", Icons.Default.Key, Color(0xFFFF9800), Modifier.weight(1f))
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            // قسم إصلاح البيانات
+            Text(stringResource(R.string.maintenance_tools), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    isRepairing = true
+                    repairTransactionData(db, context) { msg ->
+                        isRepairing = false
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF673AB7)),
+                enabled = !isRepairing
+            ) {
+                if (isRepairing) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                else {
+                    Icon(Icons.Default.Build, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.repair_daily_data))
+                }
+            }
+            Text(stringResource(R.string.repair_hint), style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
+
+            Text(stringResource(R.string.generate_activation_code), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = durationDays,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) durationDays = it },
+                    label = { Text(stringResource(R.string.days_count)) },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        val days = durationDays.toIntOrNull() ?: 0
+                        if (days > 0) {
+                            isGenerating = true
+                            val newCode = (100000..999999).random().toString()
+                            val actCode = ActivationCode(code = newCode, durationDays = days, isUsed = false, createdAt = Timestamp.now())
+                            db.collection("activation_codes").document(newCode).set(actCode)
+                                .addOnSuccessListener {
+                                    generatedCode = newCode
+                                    isGenerating = false
+                                    Toast.makeText(context, context.getString(R.string.generate_success), Toast.LENGTH_SHORT).show()
+                                }
+                        }
+                    },
+                    modifier = Modifier.height(56.dp),
+                    enabled = !isGenerating
+                ) {
+                    if (isGenerating) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                    else Text(stringResource(R.string.generate))
+                }
+            }
+
+            if (generatedCode.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.new_code_label, generatedCode), modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        IconButton(onClick = { clipboardManager.setText(AnnotatedString(generatedCode)) }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
+
+            Text(stringResource(R.string.activation_settings_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(value = trialDays, onValueChange = { if (it.all { c -> c.isDigit() }) trialDays = it }, label = { Text(stringResource(R.string.trial_days_label)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = activationTitle, onValueChange = { activationTitle = it }, label = { Text(stringResource(R.string.activation_title_label)) }, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = activationDescription, onValueChange = { activationDescription = it }, label = { Text(stringResource(R.string.activation_desc_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = paymentMethods, onValueChange = { paymentMethods = it }, label = { Text(stringResource(R.string.payment_methods_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = contactInfo, onValueChange = { contactInfo = it }, label = { Text(stringResource(R.string.contact_instructions_label)) }, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = supportPhone, onValueChange = { supportPhone = it }, label = { Text(stringResource(R.string.support_whatsapp_label)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+            
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    isSavingSettings = true
+                    val settings = AppSettings(
+                        activationTitle = activationTitle, 
+                        activationDescription = activationDescription, 
+                        paymentMethods = paymentMethods, 
+                        contactInfo = contactInfo, 
+                        supportPhone = supportPhone,
+                        trialDays = trialDays.toIntOrNull() ?: 1
+                    )
+                    db.collection("config").document("app_settings").set(settings)
+                        .addOnSuccessListener {
+                            isSavingSettings = false
+                            Toast.makeText(context, context.getString(R.string.save_success), Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener { e ->
+                            isSavingSettings = false
+                            Toast.makeText(context, "${context.getString(R.string.update_failed)}: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSavingSettings
+            ) {
+                if (isSavingSettings) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                else {
+                    Icon(Icons.Default.Save, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.save_and_update_app))
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
+
+            Text(stringResource(R.string.recent_codes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            if (isLoadingList) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                codesList.forEach { item ->
+                    CodeItem(item, context)
+                }
+            }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
-private fun repairTransactionData(db: FirebaseFirestore, onComplete: (String) -> Unit) {
+private fun repairTransactionData(db: FirebaseFirestore, context: android.content.Context, onComplete: (String) -> Unit) {
     db.collection("customers").get().addOnSuccessListener { customerDocs ->
         if (customerDocs.isEmpty) {
-            onComplete("لا يوجد عملاء لإصلاح بياناتهم")
+            onComplete(context.getString(R.string.no_customers_to_repair))
             return@addOnSuccessListener
         }
 
@@ -292,18 +299,18 @@ private fun repairTransactionData(db: FirebaseFirestore, onComplete: (String) ->
                         }
                         if (batchCount > 0) batch.commit()
                         totalProcessed++
-                        if (totalProcessed == totalCustomers) onComplete("تم تحديث $totalUpdated عملية قديمة بنجاح.")
+                        if (totalProcessed == totalCustomers) onComplete(context.getString(R.string.repair_success, totalUpdated))
                     }
                     .addOnFailureListener {
                         totalProcessed++
-                        if (totalProcessed == totalCustomers) onComplete("اكتمل الفحص مع وجود بعض الأخطاء.")
+                        if (totalProcessed == totalCustomers) onComplete(context.getString(R.string.repair_partial_error))
                     }
             } else {
                 totalProcessed++
-                if (totalProcessed == totalCustomers) onComplete("اكتمل الفحص.")
+                if (totalProcessed == totalCustomers) onComplete(context.getString(R.string.repair_completed))
             }
         }
-    }.addOnFailureListener { onComplete("فشل الاتصال") }
+    }.addOnFailureListener { onComplete(context.getString(R.string.connection_failed)) }
 }
 
 @Composable
@@ -323,12 +330,12 @@ fun CodeItem(item: ActivationCode, context: android.content.Context) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.code, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("${item.durationDays} يوم - ${if(item.isUsed) "مستخدم" else "جاهز"}", fontSize = 12.sp, color = if(item.isUsed) Color.Red else Color(0xFF388E3C))
+                Text("${item.durationDays} ${context.getString(R.string.days)} - ${if(item.isUsed) context.getString(R.string.code_status_used) else context.getString(R.string.code_status_ready)}", fontSize = 12.sp, color = if(item.isUsed) Color.Red else Color(0xFF388E3C))
             }
             if (!item.isUsed) {
                 IconButton(onClick = {
                     val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse("https://api.whatsapp.com/send?text=${URLEncoder.encode("كود تفعيل سداد الخاص بك: ${item.code}\nالمدة: ${item.durationDays} يوم", "UTF-8")}")
+                        data = Uri.parse("https://api.whatsapp.com/send?text=${URLEncoder.encode(context.getString(R.string.whatsapp_code_message, item.code, item.durationDays), "UTF-8")}")
                     }
                     context.startActivity(intent)
                 }) {

@@ -12,12 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import com.sadad.ye.R
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
@@ -37,14 +38,14 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = if (isSignUp) "إنشاء حساب جديد" else "تسجيل الدخول",
+            text = if (isSignUp) stringResource(R.string.create_account_title) else stringResource(R.string.login_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
         
         Text(
-            text = "تطبيق سداد لإدارة المديونيات",
+            text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.padding(bottom = 32.dp)
@@ -53,7 +54,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
-            label = { Text("البريد الإلكتروني") },
+            label = { Text(stringResource(R.string.email_label)) },
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -65,7 +66,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("كلمة المرور") },
+            label = { Text(stringResource(R.string.password_label)) },
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
             visualTransformation = PasswordVisualTransformation(),
@@ -86,7 +87,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                                 if (task.isSuccessful) {
                                     onLoginSuccess()
                                 } else {
-                                    Toast.makeText(context, "خطأ: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "${context.getString(R.string.error_occurred)}: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
                                 }
                             }
                     } else {
@@ -96,12 +97,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                                 if (task.isSuccessful) {
                                     onLoginSuccess()
                                 } else {
-                                    Toast.makeText(context, "فشل تسجيل الدخول: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "${context.getString(R.string.login_failed)}: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
                                 }
                             }
                     }
                 } else {
-                    Toast.makeText(context, "يرجى ملء جميع الحقول", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.fill_all_fields), Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -110,25 +111,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
             } else {
-                Text(if (isSignUp) "إنشاء حساب" else "دخول")
+                Text(if (isSignUp) stringResource(R.string.add) else stringResource(R.string.login_title))
             }
         }
 
         TextButton(onClick = { isSignUp = !isSignUp }) {
-            Text(if (isSignUp) "لديك حساب بالفعل؟ سجل دخولك" else "ليس لديك حساب؟ أنشئ حساباً جديداً")
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // خيار الدخول كزائر (اختياري)
-        TextButton(onClick = {
-            isLoading = true
-            auth.signInAnonymously().addOnCompleteListener { task ->
-                isLoading = false
-                if (task.isSuccessful) onLoginSuccess()
-            }
-        }) {
-            Text("الدخول كزائر (تجربة سريعة)", color = Color.Gray, fontSize = 12.sp)
+            Text(if (isSignUp) stringResource(R.string.have_account) else stringResource(R.string.no_account))
         }
     }
 }

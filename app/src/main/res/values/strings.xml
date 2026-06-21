@@ -1,5 +1,318 @@
 <resources>
     <string name="app_name">سداد</string>
-    <!-- معرف العميل (Web Client ID) من Firebase لتسجيل الدخول بجوجل -->
     <string name="default_web_client_id">9848288303-v5hr4qngosbd5jb25svrhr3liehijtv2.apps.googleusercontent.com</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="back">رجوع</string>
+    <string name="admin_panel">لوحة تحكم المدير</string>
+    <string name="admin_panel_subtitle">إنشاء وإدارة أكواد التفعيل</string>
+    <string name="account_profile">الحساب والملف الشخصي</string>
+    <string name="store_name">اسم المحل / المؤسسة</string>
+    <string name="business_address">عنوان العمل</string>
+    <string name="password">كلمة المرور</string>
+    <string name="change_password_subtitle">تغيير كلمة المرور الخاصة بك</string>
+    <string name="app_settings">إعدادات التطبيق</string>
+    <string name="language">لغة التطبيق</string>
+    <string name="arabic">العربية (Arabic)</string>
+    <string name="english">الإنجليزية (English)</string>
+    <string name="choose_language">اختر اللغة</string>
+    <string name="dark_mode">الوضع الليلي</string>
+    <string name="dark_mode_on">مفعل دائماً</string>
+    <string name="dark_mode_off">معطل (الوضع الفاتح)</string>
+    <string name="dark_mode_auto">تلقائي (حسب النظام)</string>
+    <string name="default_currency">العملة الافتراضية</string>
+    <string name="voice_instructions">تعليمات الأوامر الصوتية</string>
+    <string name="voice_instructions_subtitle">إظهار شرح الاستخدام عند الضغط على الميكروفون</string>
+    <string name="app_lock">قفل التطبيق</string>
+    <string name="app_lock_subtitle">طلب الرمز عند فتح التطبيق</string>
+    <string name="use_biometric">استخدام البصمة / الوجه</string>
+    <string name="use_biometric_subtitle">فتح القفل بسرعة باستخدام القياسات الحيوية</string>
+    <string name="change_pin">تغيير رمز الدخول (PIN)</string>
+    <string name="current_pin_prefix">الرمز الحالي: %1$s</string>
+    <string name="debt_notifications">تنبيهات المديونيات</string>
+    <string name="auto_notification_system">نظام التنبيه التلقائي</string>
+    <string name="auto_notification_subtitle">تنبيه عند اقتراب العميل من سقف المديونية (10% متبقية)</string>
+    <string name="reminder_template">قالب رسالة المطالبة</string>
+    <string name="reminder_template_subtitle">تعديل نص رسالة الواتساب الجاهزة</string>
+    <string name="subscription">الاشتراك</string>
+    <string name="subscription_status">حالة الاشتراك</string>
+    <string name="expiry_date_prefix">ينتهي في: %1$s</string>
+    <string name="trial_period">فترة تجريبية (يوم واحد)</string>
+    <string name="activate_new_code">تفعيل كود جديد</string>
+    <string name="activate">تفعيل</string>
+    <string name="code_too_short">الكود قصير جداً</string>
+    <string name="data_backup">البيانات والنسخ الاحتياطي</string>
+    <string name="create_backup">إنشاء نسخة احتياطية (تصدير)</string>
+    <string name="create_backup_subtitle">حفظ كافة البيانات والديون في ملف لمشاركته أو حفظه</string>
+    <string name="restore_backup">استعادة نسخة احتياطية (استيراد)</string>
+    <string name="restore_backup_subtitle">اختيار ملف نسخة احتياطية سابقة لاستعادة البيانات</string>
+    <string name="export_pdf">تصدير تقرير PDF</string>
+    <string name="export_pdf_subtitle">مشاركة كشف حساب شامل للعملاء</string>
+    <string name="export_excel">تصدير ملف Excel</string>
+    <string name="export_excel_subtitle">حفظ البيانات بصيغة CSV المتوافقة مع الإكسل</string>
+    <string name="support_help">الدعم والمساعدة</string>
+    <string name="contact_support">تواصل مع الدعم الفني</string>
+    <string name="support_whatsapp_subtitle">مساعدة عبر واتساب</string>
+    <string name="whatsapp_support_message">مرحباً، أحتاج مساعدة في تطبيق سداد</string>
+    <string name="whatsapp_error">فشل فتح واتساب</string>
+    <string name="logout">تسجيل الخروج</string>
+    <string name="delete_account">حذف الحساب نهائياً</string>
+    <string name="edit_store_name">تعديل اسم المحل</string>
+    <string name="name">الاسم</string>
+    <string name="save">حفظ</string>
+    <string name="save_success">تم الحفظ بنجاح</string>
+    <string name="send">إرسال</string>
+    <string name="add">إضافة</string>
+    <string name="delete">حذف</string>
+    <string name="edit_business_address">تعديل عنوان العمل</string>
+    <string name="address">العنوان</string>
+    <string name="change_pin_title">تغيير رمز PIN</string>
+    <string name="new_pin_label">رمز جديد (4 أرقام)</string>
+    <string name="confirm_delete">تأكيد الحذف</string>
+    <string name="cancel">إلغاء</string>
+    <string name="delete_account_confirmation">هل أنت متأكد؟ سيتم حذف جميع بياناتك وعملائك نهائياً.</string>
+    <string name="choose_currency">اختر العملة</string>
+    <string name="change_password_title">تغيير كلمة المرور</string>
+    <string name="new_password_label">كلمة المرور الجديدة</string>
+    <string name="update">تحديث</string>
+    <string name="updated_successfully">تم التحديث</string>
+    <string name="currency_yer">ريال يمني</string>
+    <string name="currency_default">ريال</string>
+    <string name="currency_sar">ريال سعودي</string>
+    <string name="currency_aed">درهم إماراتي</string>
+    <string name="currency_usd">دولار أمريكي</string>
+    <string name="currency_egp">جنية مصري</string>
+    <string name="edit_reminder_template">تعديل قالب رسالة المطالبة</string>
+    <string name="template_hint">استخدم {name} لاسم العميل و {balance} للرصيد.</string>
+    <string name="default_user_name">مستخدم سداد</string>
+
+    <!-- Voice Recording -->
+    <string name="voice_instructions_title">تعليمات التسجيل الصوتي</string>
+    <string name="voice_instructions_body">يمكنك تسجيل العمليات بسرعة باستخدام صوتك. يرجى التحدث بصيغة واضحة مثل:</string>
+    <string name="voice_example_debt">\"سجل دين على محمد عمر بمبلغ خمسة آلاف مقابل كرتون عصير\"</string>
+    <string name="voice_example_paid">\"سدد العميل محمد عمر مبلغ ألفين ريال عبر محفظة جيب\"</string>
+    <string name="voice_debt_keywords_hint">• استخدم كلمات (سجل على، قيد دين على، أرصد على) للديون.</string>
+    <string name="voice_paid_keywords_hint">• استخدم كلمات (سدد العميل، تم سداد من، دفع) للسداد.</string>
+    <string name="voice_note_hint">• اذكر الملاحظة بعد كلمة (مقابل) أو (عن).</string>
+    <string name="voice_record_how_to">للتسجيل: اضغط باستمرار على زر الميكروفون وتحدث، ثم ارفع إصبعك عند الانتهاء.</string>
+    <string name="voice_listening">جاري الاستماع الآن...</string>
+    <string name="voice_disable_hint">يمكنك إيقاف ظهور هذه التعليمات من شاشة الإعدادات</string>
+    <string name="voice_confirm_title">تأكيد العملية الصوتية</string>
+    <string name="voice_confirm_said">لقد قلت: \"%1$s\"</string>
+    <string name="voice_confirm_customer">العميل: %1$s</string>
+    <string name="voice_confirm_type">النوع: %1$s</string>
+    <string name="voice_confirm_amount">المبلغ: %1$s</string>
+    <string name="voice_confirm_note">الملاحظة: %1$s</string>
+    <string name="voice_type_debt">دين (+)</string>
+    <string name="voice_type_paid">سداد (-)</string>
+    <string name="voice_confirm_save">تأكيد وحفظ</string>
+    <string name="voice_success">تم حفظ العملية بنجاح</string>
+    <string name="voice_debt_limit_error">عذراً، العميل تجاوز سقف المديونية المسموح به!</string>
+    <string name="voice_internet_error">الأوامر الصوتية تتطلب اتصالاً بالإنترنت</string>
+    <string name="voice_hold_to_talk">اضغط باستمرار للتحدث</string>
+
+    <!-- Export & Backup -->
+    <string name="backup_file_prefix">نسخة_احتياطية_سداد_</string>
+    <string name="share_backup_title">حفظ النسخة الاحتياطية عبر...</string>
+    <string name="backup_success">تمت استعادة البيانات بنجاح</string>
+    <string name="backup_error">فشل حفظ البيانات: %1$s</string>
+    <string name="backup_read_error">خطأ في قراءة الملف: %1$s</string>
+    <string name="backup_export_error">فشل إنشاء النسخة: %1$s</string>
+
+    <string name="report_file_name">تقرير_سداد</string>
+    <string name="report_title">تقرير المديونيات الشامل</string>
+    <string name="report_customer_name">اسم العميل</string>
+    <string name="report_phone">رقم الجوال</string>
+    <string name="report_balance">المبلغ المستحق</string>
+    <string name="report_date_prefix">تاريخ التقرير: %1$s</string>
+    <string name="report_share_title">مشاركة التقرير عبر:</string>
+    <string name="report_export_pdf_error">فشل تصدير PDF: %1$s</string>
+    <string name="report_export_excel_error">فشل تصدير Excel: %1$s</string>
+    <string name="report_excel_header_total">تقرير مديونيات: %1$s</string>
+    <string name="report_excel_header_columns">اسم العميل,رقم الجوال,إجمالي المديونية</string>
+
+    <!-- WhatsApp & Reminder -->
+    <string name="default_whatsapp_template">عزيزي {name}، نود تذكيركم بأن رصيد مديونيتكم هو {balance}. شكراً لتعاملكم معنا.</string>
+    <string name="whatsapp_sent_voice">تم التسجيل صوتياً</string>
+
+    <!-- Customer List Screen -->
+    <string name="app_title">سداد - قائمة العملاء</string>
+    <string name="total_debts_label">إجمالي مديونيات العملاء</string>
+    <string name="search_hint">بحث عن عميل...</string>
+    <string name="delete_customer_title">حذف العميل</string>
+    <string name="delete_customer_confirm">هل أنت متأكد من حذف العميل %1$s؟</string>
+    <string name="last_transaction_prefix">آخر عملية: %1$s</string>
+    <string name="customer_deleted_success">تم الحذف</string>
+    <string name="fill_required_fields">يرجى ملء الاسم ورقم الجوال</string>
+    <string name="customer_added_success">تمت إضافة العميل بنجاح</string>
+    <string name="error_occurred">حدث خطأ</string>
+    <string name="customer_name_exists">اسم العميل مسجل مسبقاً</string>
+    <string name="phone_number_exists">رقم الجوال مسجل مسبقاً</string>
+
+    <!-- Add Customer Screen -->
+    <string name="add_new_customer">إضافة عميل جديد</string>
+    <string name="customer_name">اسم العميل</string>
+    <string name="phone_number">رقم الجوال</string>
+    <string name="previous_debt_balance">رصيد مديونية سابقة (%1$s)</string>
+    <string name="initial_balance_date">تاريخ الرصيد الافتتاحي</string>
+    <string name="debt_limit_label_with_currency">سقف المديونية (%1$s)</string>
+    <string name="debt_limit_hint">اتركه فارغاً ليكون بدون سقف</string>
+    <string name="add_customer_button">إضافة عميل</string>
+    <string name="import_contacts">استيراد من جهات الاتصال</string>
+    <string name="contacts_permission_required">يجب منح إذن الوصول لجهات الاتصال</string>
+    <string name="contacts_import_failed">فشل استيراد جهة الاتصال</string>
+
+    <!-- Edit Customer Screen -->
+    <string name="edit_customer_details">تعديل بيانات العميل</string>
+    <string name="update_success">تم تحديث البيانات بنجاح</string>
+    <string name="update_failed">فشل في تحديث البيانات</string>
+    <string name="fill_all_fields">يرجى ملء جميع الحقول</string>
+    <string name="phone_number_exists_other">رقم الجوال هذا مسجل مسبقاً لعميل آخر</string>
+    <string name="save_changes">حفظ التعديلات</string>
+
+    <!-- Daily Report Screen -->
+    <string name="daily_report">التقرير اليومي</string>
+    <string name="share">مشاركة</string>
+    <string name="report_date_label">تاريخ التقرير:</string>
+    <string name="total_debts">إجمالي الديون</string>
+    <string name="total_collection">إجمالي التحصيل</string>
+    <string name="no_transactions_date">لا توجد عمليات لهذا التاريخ</string>
+    <string name="unknown_customer">عميل غير معروف</string>
+    <string name="daily_report_title">تقرير العمليات اليومي - سداد</string>
+    <string name="net_total">الصافي: %1$s %2$s</string>
+    <string name="collection_type">تحصيل (-)</string>
+
+    <!-- Admin Panel -->
+    <string name="admin_panel_title">لوحة التحكم العليا</string>
+    <string name="system_stats">إحصائيات النظام</string>
+    <string name="users_stat">المستخدمين</string>
+    <string name="codes_stat">الأكواد</string>
+    <string name="maintenance_tools">أدوات الصيانة</string>
+    <string name="repair_daily_data">إصلاح بيانات التقارير اليومية</string>
+    <string name="repair_hint">استخدم هذا الزر لربط العمليات القديمة بحسابك لكي تظهر في التقارير.</string>
+    <string name="generate_activation_code">توليد كود اشتراك</string>
+    <string name="days_count">عدد الأيام</string>
+    <string name="days">أيام</string>
+    <string name="generate">توليد</string>
+    <string name="generate_success">تم التوليد بنجاح</string>
+    <string name="new_code_label">كود جديد: %1$s</string>
+    <string name="activation_settings_title">إعدادات شاشة التفعيل والتجربة</string>
+    <string name="trial_days_label">أيام الفترة التجريبية</string>
+    <string name="activation_title_label">عنوان التفعيل</string>
+    <string name="activation_desc_label">وصف التفعيل</string>
+    <string name="payment_methods_label">طرق الدفع</string>
+    <string name="contact_instructions_label">تعليمات التواصل (بعد الدفع)</string>
+    <string name="support_whatsapp_label">رقم الواتساب للدعم الفني</string>
+    <string name="save_and_update_app">حفظ وتحديث تطبيق المشتركين</string>
+    <string name="recent_codes">الأكواد الأخيرة</string>
+    <string name="code_status_used">مستخدم</string>
+    <string name="code_status_ready">جاهز</string>
+    <string name="no_customers_to_repair">لا يوجد عملاء لإصلاح بياناتهم</string>
+    <string name="repair_success">تم تحديث %1$d عملية قديمة بنجاح.</string>
+    <string name="repair_partial_error">اكتمل الفحص مع وجود بعض الأخطاء.</string>
+    <string name="repair_completed">اكتمل الفحص.</string>
+    <string name="connection_failed">فشل الاتصال</string>
+    <string name="whatsapp_code_message">كود تفعيل سداد الخاص بك: %1$s\nالمدة: %2$d يوم</string>
+
+    <!-- Auth Screen -->
+    <string name="password_reset_title">استعادة كلمة المرور</string>
+    <string name="create_account_title">إنشاء حساب سداد</string>
+    <string name="login_title">تسجيل الدخول</string>
+    <string name="store_user_name">اسم المحل / المستخدم</string>
+    <string name="email_label">البريد الإلكتروني</string>
+    <string name="password_label">كلمة المرور</string>
+    <string name="confirm_password_label">تأكيد كلمة المرور</string>
+    <string name="forgot_password_q">نسيت كلمة المرور؟</string>
+    <string name="or"> أو </string>
+    <string name="google_login">الدخول عبر جوجل</string>
+    <string name="have_account">لديك حساب؟ سجل دخولك</string>
+    <string name="no_account">ليس لديك حساب؟ سجل الآن</string>
+    <string name="enter_email">أدخل بريدك الإلكتروني</string>
+    <string name="reset_link_sent">تم إرسال الرابط لبريدك</string>
+    <string name="send_reset_link">إرسال رابط الاستعادة</string>
+    <string name="back_to_login">العودة لتسجيل الدخول</string>
+    <string name="login_failed">فشل تسجيل الدخول</string>
+    <string name="passwords_not_matching">كلمات المرور غير متطابقة</string>
+    <string name="fill_all_data">يرجى ملء جميع البيانات</string>
+
+    <!-- Activation Screen -->
+    <string name="payment_methods_available">طرق الدفع المتاحة:</string>
+    <string name="enter_code_here">أدخل كود التفعيل هنا</string>
+    <string name="enter_valid_code">يرجى إدخال كود صحيح</string>
+    <string name="activate_now">تفعيل الآن</string>
+
+    <!-- App Lock Screen -->
+    <string name="app_protected_title">تطبيق سداد محمي</string>
+    <string name="enter_pin_to_continue">يرجى إدخال رمز الدخول للمتابعة</string>
+    <string name="pin_label">رمز PIN (4 أرقام)</string>
+    <string name="wrong_pin">الرمز غير صحيح</string>
+    <string name="use_biometric_desc">استخدام البصمة</string>
+    <string name="click_to_use_biometric">اضغط لاستخدام البصمة</string>
+    <string name="app_lock_hint">تنبيه: هذا الرمز يحمي بياناتك من المتطفلين على هاتفك</string>
+    <string name="unlock_title">فتح تطبيق سداد</string>
+    <string name="unlock_subtitle">استخدم البصمة للدخول بسرعة</string>
+
+    <!-- Customer Details Screen -->
+    <string name="phone_label">جوال: %1$s</string>
+    <string name="current_balance_label">الرصيد الحالي</string>
+    <string name="debt_limit_label">سقف المديونية: %1$s %2$s</string>
+    <string name="transaction_history_label">سجل العمليات</string>
+    <string name="add_record">إضافة سجل</string>
+    <string name="no_transactions">لا توجد عمليات مسجلة</string>
+    <string name="latest">الأحدث</string>
+    <string name="earliest">الأقدم</string>
+    <string name="send_notice_title">إرسال إشعار</string>
+    <string name="send_notice_confirm">هل تريد إرسال تفاصيل هذه العملية للعميل عبر واتساب؟</string>
+    <string name="delete_transaction_title">حذف العملية</string>
+    <string name="delete_transaction_confirm">هل أنت متأكد من حذف هذه العملية؟</string>
+    <string name="clear_history_title">تصفية السجلات</string>
+    <string name="clear_history_confirm">سيتم حذف جميع السجلات واستبدالها برصيد سابق. هل أنت متأكد؟</string>
+    <string name="clear_history_success">تمت التصفية بنجاح</string>
+    <string name="share_report_title">مشاركة تقرير</string>
+    <string name="full_account_statement">كشف حساب كامل</string>
+    <string name="date_range_statement">كشف حساب (بين تاريخين)</string>
+    <string name="send_reminder">إرسال رسالة مطالبة</string>
+    <string name="debt_only_report">تقرير مديونية فقط</string>
+    <string name="close">إغلاق</string>
+    <string name="select_period_title">تحديد فترة التقرير</string>
+    <string name="from_date">من تاريخ:</string>
+    <string name="to_date">إلى تاريخ:</string>
+    <string name="generate_report">إنشاء التقرير</string>
+    <string name="debt_label">دين</string>
+    <string name="paid_label">سداد</string>
+    <string name="mark_as_sent_manual">تحديد كمرسل (بدون إرسال)</string>
+    <string name="edit">تعديل</string>
+    <string name="add_new_transaction_title">إضافة عملية جديدة</string>
+    <string name="amount_label">المبلغ</string>
+    <string name="date_label">التاريخ</string>
+    <string name="note_label">ملاحظة</string>
+    <string name="invalid_data">بيانات غير صحيحة</string>
+    <string name="debt_limit_exceeded">تجاوز سقف المديونية!</string>
+    <string name="previous_balance_note">رصيد سابق</string>
+    <string name="send_previous_first_error">يرجى إرسال العمليات السابقة أولاً للحفاظ على تسلسل حساب العميل في الواتساب، أو تحديدها كمرسلة من القائمة لفتح القفل.</string>
+    <string name="no_internet_error">لا يوجد اتصال بالإنترنت لإرسال الإشعار</string>
+
+    <!-- WhatsApp Content -->
+    <string name="whatsapp_report_for">كشف حساب: %1$s</string>
+    <string name="whatsapp_period">الفترة: من %1$s إلى %2$s</string>
+    <string name="whatsapp_previous_balance">رصيد سابق: %1$s %2$s %3$s</string>
+    <string name="whatsapp_owe_you">(لكم)</string>
+    <string name="whatsapp_you_owe">(عليكم)</string>
+    <string name="whatsapp_balance_status_owe_you">لكم</string>
+    <string name="whatsapp_balance_status_you_owe">عليكم</string>
+    <string name="whatsapp_balance_status_zero">صفر</string>
+    <string name="whatsapp_final_balance_zero">الرصيد النهائي: تم سداد كامل الرصيد</string>
+    <string name="whatsapp_final_balance_prefix">إجمالي الرصيد %1$s: %2$s %3$s</string>
+    <string name="whatsapp_single_debt_title">إشعار عملية دين</string>
+    <string name="whatsapp_single_paid_title">إشعار عملية سداد</string>
+    <string name="whatsapp_amount_you_owe">المبلغ الذي عليكم</string>
+    <string name="whatsapp_amount_owe_you">المبلغ الذي لكم</string>
+    <string name="whatsapp_new_balance_you_owe">يصبح الرصيد الذي عليكم: %1$s %2$s</string>
+    <string name="whatsapp_new_balance_owe_you">يصبح الرصيد الذي لكم: %1$s %2$s</string>
+    <string name="whatsapp_new_balance_zero">الرصيد: 0 %1$s</string>
+    <string name="whatsapp_error_send">فشل الإرسال</string>
+    <string name="whatsapp_error_open">فشل في فتح واتساب</string>
+    <string name="whatsapp_full_statement_title">كشف حساب كامل</string>
+    <string name="whatsapp_debt_notice_title">إشعار رصيد مديونية</string>
 </resources>

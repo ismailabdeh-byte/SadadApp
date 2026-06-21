@@ -38,5 +38,17 @@ data class User(
     var isAdmin: Boolean = false,
 
     @get:PropertyName("showVoiceInstructions") @set:PropertyName("showVoiceInstructions")
-    var showVoiceInstructions: Boolean = true // حقل للتحكم في ظهور تعليمات الصوت
+    var showVoiceInstructions: Boolean = true,
+
+    @get:PropertyName("isBiometricEnabled") @set:PropertyName("isBiometricEnabled")
+    var isBiometricEnabled: Boolean = false,
+
+    @get:PropertyName("debtNotificationEnabled") @set:PropertyName("debtNotificationEnabled")
+    var debtNotificationEnabled: Boolean = true, // تفعيل تنبيهات المديونيات
+
+    @get:PropertyName("whatsappReminderTemplate") @set:PropertyName("whatsappReminderTemplate")
+    var whatsappReminderTemplate: String = "عزيزي {name}، نود إحاطتكم بأن حسابكم قد قارب على تجاوز السقف المسموح به. رصيدكم الحالي هو: {balance}. يرجى التكرم بالسداد لضمان استمرار الخدمة.",
+
+    @get:PropertyName("isDarkMode") @set:PropertyName("isDarkMode")
+    var isDarkMode: Boolean? = null // null means follow system
 )

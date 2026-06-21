@@ -29,7 +29,10 @@ data class Transaction(
     var debt: Boolean = true,
     
     @get:PropertyName("sent") @set:PropertyName("sent")
-    var sent: Boolean = false
+    var sent: Boolean = false,
+
+    @get:PropertyName("sentViaWhatsApp") @set:PropertyName("sentViaWhatsApp")
+    var sentViaWhatsApp: Boolean = false // تمييز إذا أرسلت عبر واتساب أو يدوياً
 ) {
     @get:Exclude
     val isDebt: Boolean get() = debt
