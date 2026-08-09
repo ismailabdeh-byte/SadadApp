@@ -297,6 +297,9 @@
     <string name="login_failed">Login failed</string>
     <string name="passwords_not_matching">Passwords do not match</string>
     <string name="fill_all_data">Please fill in all data</string>
+    <string name="agree_to_terms">I agree and understand the nature of the app as a personal debt log</string>
+    <string name="must_agree_to_terms">You must agree to the terms to continue</string>
+    <string name="no_customers_voice_error">Customer list is empty! Please add customers first to be able to use voice commands.</string>
 
     <!-- Activation Screen -->
     <string name="payment_methods_available">Available Payment Methods:</string>

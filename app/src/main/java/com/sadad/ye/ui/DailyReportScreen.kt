@@ -74,29 +74,28 @@ fun DailyReportScreen(onBack: () -> Unit, currency: String) {
                 calendar.set(Calendar.MILLISECOND, 999)
                 val endTime = calendar.timeInMillis
 
-                // 3. جلب العمليات (نحاول أولاً بـ userId لسرعة الأداء)
+                // 3. تحسين: جلب العمليات المفلترة بالتاريخ والمستخدم مباشرة من السيرفر
                 db.collection("transactions")
                     .whereEqualTo("userId", currentUserId)
+                    .whereGreaterThanOrEqualTo("date", startTime)
+                    .whereLessThanOrEqualTo("date", endTime)
                     .get()
                     .addOnSuccessListener { snapshot ->
-                        val allList = snapshot.toObjects(Transaction::class.java)
-                        val filtered = allList.filter { it.date in startTime..endTime }
-                        
-                        if (filtered.isNotEmpty()) {
-                            transactions = filtered.sortedByDescending { it.date }
-                            isLoading = false
-                        } else {
-                            // 4. الطريقة الاحتياطية للبيانات القديمة
-                            val ids = customerMap.keys.toList()
-                            if (ids.isNotEmpty()) {
-                                fetchLegacy(db, ids, startTime, endTime) { legacyList ->
-                                    transactions = legacyList.sortedByDescending { it.date }
-                                    isLoading = false
-                                }
-                            } else {
-                                transactions = emptyList()
+                        val list = snapshot.toObjects(Transaction::class.java)
+                        transactions = list.sortedByDescending { it.date }
+                        isLoading = false
+                    }
+                    .addOnFailureListener {
+                        // في حال عدم وجود Index، نستخدم الطريقة الاحتياطية
+                        val ids = customerMap.keys.toList()
+                        if (ids.isNotEmpty()) {
+                            fetchLegacy(db, ids, startTime, endTime) { legacyList ->
+                                transactions = legacyList.sortedByDescending { it.date }
                                 isLoading = false
                             }
+                        } else {
+                            transactions = emptyList()
+                            isLoading = false
                         }
                     }
             }

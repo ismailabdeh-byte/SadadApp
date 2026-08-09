@@ -109,16 +109,19 @@ fun CustomerListScreen(
     LaunchedEffect(currentUserId) {
         if (currentUserId.isEmpty()) return@LaunchedEffect
         val db = FirebaseFirestore.getInstance()
+        
+        // جلب العملاء الخاصين بالمستخدم فقط
         db.collection("customers").whereEqualTo("userId", currentUserId)
             .addSnapshotListener { value, _ -> if (value != null) customers = value.toObjects(Customer::class.java) }
-        db.collection("transactions").addSnapshotListener { value, _ ->
-            if (value != null) {
-                val allTrans = value.toObjects(Transaction::class.java)
-                val customerIds = customers.map { it.customerId }.toSet()
-                transactions = allTrans.filter { it.customerId in customerIds }
+        
+        // تحسين كبير: جلب العمليات الخاصة بالمستخدم فقط بدلاً من جلب الكل
+        db.collection("transactions").whereEqualTo("userId", currentUserId)
+            .addSnapshotListener { value, _ ->
+                if (value != null) {
+                    transactions = value.toObjects(Transaction::class.java)
+                }
+                isLoading = false
             }
-            isLoading = false
-        }
     }
 
     val filteredCustomers = customers.filter { 
@@ -134,8 +137,10 @@ fun CustomerListScreen(
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_title)) },
                     actions = {
-                        IconButton(onClick = onDailyReportClick) { Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.report_title)) }
-                        IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, stringResource(R.string.settings_title)) }
+                        // تم نقل زر التقرير اليومي إلى القائمة الجانبية
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Menu, stringResource(R.string.settings_title)) }
                     }
                 )
             },
@@ -149,6 +154,10 @@ fun CustomerListScreen(
                             .pointerInput(showVoiceInstructions) { // نراقب حالة التعليمات هنا للتحديث الفوري
                                 detectTapGestures(
                                     onTap = { 
+                                        if (customers.isEmpty() && !isLoading) {
+                                            Toast.makeText(context, context.getString(R.string.no_customers_voice_error), Toast.LENGTH_LONG).show()
+                                            return@detectTapGestures
+                                        }
                                         if (showVoiceInstructions) {
                                             showInstructionsDialog = true 
                                         } else {
@@ -167,6 +176,10 @@ fun CustomerListScreen(
                                     },
                                     onPress = {
                                         if (!showVoiceInstructions) {
+                                            if (customers.isEmpty() && !isLoading) {
+                                                Toast.makeText(context, context.getString(R.string.no_customers_voice_error), Toast.LENGTH_LONG).show()
+                                                return@detectTapGestures
+                                            }
                                             // فحص الإنترنت قبل البدء
                                             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                                             val isOnline = connectivityManager.activeNetwork?.let {
@@ -269,6 +282,7 @@ fun CustomerListScreen(
         if (showInstructionsDialog) {
             VoiceInstructionsDialog(
                 isListening = isListening,
+                customersEmpty = customers.isEmpty(),
                 onStartListen = { speechRecognizer.startListening(recognizerIntent) },
                 onStopListen = { speechRecognizer.stopListening() },
                 onDismiss = { showInstructionsDialog = false }
@@ -280,6 +294,7 @@ fun CustomerListScreen(
 @Composable
 fun VoiceInstructionsDialog(
     isListening: Boolean,
+    customersEmpty: Boolean = false,
     onStartListen: () -> Unit,
     onStopListen: () -> Unit,
     onDismiss: () -> Unit
@@ -332,6 +347,10 @@ fun VoiceInstructionsDialog(
                     .background(if (isListening) Color.Red else MaterialTheme.colorScheme.primary, CircleShape)
                     .pointerInput(Unit) {
                         detectTapGestures(onPress = {
+                            if (customersEmpty) {
+                                Toast.makeText(context, context.getString(R.string.no_customers_voice_error), Toast.LENGTH_LONG).show()
+                                return@detectTapGestures
+                            }
                             // فحص الإنترنت قبل البدء
                             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                             val isOnline = connectivityManager.activeNetwork?.let {
@@ -362,7 +381,7 @@ fun VoiceInstructionsDialog(
 @Preview(showBackground = true)
 @Composable
 fun VoiceInstructionsDialogPreview() {
-    MaterialTheme { Surface { VoiceInstructionsDialog(false, {}, {}, {}) } }
+    MaterialTheme { Surface { VoiceInstructionsDialog(false, false, {}, {}, {}) } }
 }
 
 @Composable

@@ -745,7 +745,7 @@ fun sendWhatsAppReportWithRange(context: Context, customer: Customer, startDate:
         val message = sb.toString()
         val intent = Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}") }
         context.startActivity(intent)
-    } catch (_: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_send), Toast.LENGTH_SHORT).show() }
+    } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_send), Toast.LENGTH_SHORT).show() }
 }
 
 fun sendSingleTransactionWhatsApp(context: Context, customer: Customer, transaction: Transaction, currentBalance: Double, currency: String) {
@@ -768,15 +768,15 @@ fun sendSingleTransactionWhatsApp(context: Context, customer: Customer, transact
         val intent = Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}") }
         context.startActivity(intent)
         FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId).update(mapOf("sent" to true, "sentViaWhatsApp" to true))
-    } catch (_: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() }
+    } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() }
 }
 
-private fun deleteTransaction(context: Context, transaction: Transaction, customer: Customer, user: User?) {
+fun deleteTransaction(context: Context, transaction: Transaction, customer: Customer, user: User?) {
     FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId).delete()
     if (user?.debtNotificationEnabled == true) NotificationUtils.cancelNotification(context, customer.customerId)
 }
 
-private fun sendWhatsAppReport(context: Context, customer: Customer, currentBalance: Double, reportTransactions: List<Transaction>, title: String, currency: String) {
+fun sendWhatsAppReport(context: Context, customer: Customer, currentBalance: Double, reportTransactions: List<Transaction>, title: String, currency: String) {
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
     val sb = StringBuilder("$title\n${context.getString(R.string.report_customer_name)}: ${customer.name}\n${context.getString(R.string.date_label)}: ${dateFormat.format(Date())}\n-----------------\n")
     if (reportTransactions.isNotEmpty()) {
@@ -808,7 +808,7 @@ private fun sendWhatsAppReport(context: Context, customer: Customer, currentBala
         val message = sb.toString()
         val intent = Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}") }
         context.startActivity(intent)
-    } catch (_: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_send), Toast.LENGTH_SHORT).show() }
+    } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_send), Toast.LENGTH_SHORT).show() }
 }
 
 fun sendWhatsAppReminder(context: Context, customer: Customer, balance: Double, user: User?, currency: String) {
@@ -818,10 +818,10 @@ fun sendWhatsAppReminder(context: Context, customer: Customer, balance: Double, 
     try {
         val intent = Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}") }
         context.startActivity(intent)
-    } catch (_: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() }
+    } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() }
 }
 
-private fun clearHistoryAndSetBalance(customerId: String, balance: Double, context: Context, onResult: (Boolean) -> Unit) {
+fun clearHistoryAndSetBalance(customerId: String, balance: Double, context: Context, onResult: (Boolean) -> Unit) {
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
     val userId = auth.currentUser?.uid ?: ""

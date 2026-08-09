@@ -50,6 +50,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var showForgotPassword by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var isAgreed by remember { mutableStateOf(false) }
 
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
@@ -189,6 +190,22 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isAgreed,
+                            onCheckedChange = { isAgreed = it }
+                        )
+                        Text(
+                            text = stringResource(R.string.agree_to_terms),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -197,6 +214,10 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                     onClick = {
                         if (email.isEmpty() || password.isEmpty() || (isSignUp && (name.isEmpty() || phone.isEmpty() || confirmPassword.isEmpty()))) {
                             Toast.makeText(context, context.getString(R.string.fill_all_data), Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (isSignUp && !isAgreed) {
+                            Toast.makeText(context, context.getString(R.string.must_agree_to_terms), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         if (isSignUp && password != confirmPassword) {

@@ -19,6 +19,50 @@ import java.util.*
 
 object BackupUtils {
 
+    fun generateBackupJson(user: User?, customers: List<Customer>, transactions: List<Transaction>): String {
+        val root = JSONObject()
+        
+        // 1. بيانات المستخدم
+        val userJson = JSONObject().apply {
+            put("name", user?.name)
+            put("businessAddress", user?.businessAddress)
+            put("phoneNumber", user?.phoneNumber)
+            put("defaultCurrency", user?.defaultCurrency)
+        }
+        root.put("user", userJson)
+
+        // 2. قائمة العملاء
+        val customersArray = JSONArray()
+        customers.forEach { customer ->
+            val cJson = JSONObject().apply {
+                put("customerId", customer.customerId)
+                put("name", customer.name)
+                put("phoneNumber", customer.phoneNumber)
+                put("debtLimit", customer.debtLimit)
+            }
+            customersArray.put(cJson)
+        }
+        root.put("customers", customersArray)
+
+        // 3. العمليات
+        val transactionsArray = JSONArray()
+        transactions.forEach { trans ->
+            val tJson = JSONObject().apply {
+                put("transactionId", trans.transactionId)
+                put("customerId", trans.customerId)
+                put("amount", trans.amount)
+                put("note", trans.note)
+                put("date", trans.date)
+                put("debt", trans.debt)
+                put("sent", trans.sent)
+            }
+            transactionsArray.put(tJson)
+        }
+        root.put("transactions", transactionsArray)
+
+        return root.toString(4)
+    }
+
     fun exportBackup(context: Context, user: User?, customers: List<Customer>, transactions: List<Transaction>) {
         try {
             val root = JSONObject()

@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,20 +18,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
 import com.sadad.ye.R
 import com.sadad.ye.models.AppSettings
 import com.sadad.ye.models.Customer
@@ -42,7 +36,6 @@ import com.sadad.ye.utils.AccountUtils
 import com.sadad.ye.utils.BackupUtils
 import com.sadad.ye.utils.ExportUtils
 import com.sadad.ye.utils.SubscriptionUtils
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -50,7 +43,7 @@ import java.util.*
 @Composable
 fun SettingsScreen(
     user: User?,
-    appSettings: AppSettings, // استلام الإعدادات العامة
+    appSettings: AppSettings,
     onBack: () -> Unit,
     onAdminClick: () -> Unit = {}
 ) {
@@ -65,7 +58,6 @@ fun SettingsScreen(
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showTemplateDialog by remember { mutableStateOf(false) }
-    var showLanguageDialog by remember { mutableStateOf(false) }
     
     var activationCode by remember { mutableStateOf("") }
     var isActivating by remember { mutableStateOf(false) }
@@ -73,7 +65,26 @@ fun SettingsScreen(
     var isImporting by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
     
-    // لاونشر اختيار ملف النسخة الاحتياطية
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            isExporting = true
+            fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+                val json = BackupUtils.generateBackupJson(user, customers, transactions)
+                try {
+                    context.contentResolver.openOutputStream(it)?.use { output ->
+                        output.write(json.toByteArray())
+                    }
+                    Toast.makeText(context, context.getString(R.string.save_success), Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, context.getString(R.string.backup_export_error, e.message), Toast.LENGTH_LONG).show()
+                }
+                isExporting = false
+            }
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -151,52 +162,12 @@ fun SettingsScreen(
             SettingsSectionTitle(title = stringResource(R.string.app_settings))
             
             SettingsItem(
-                icon = Icons.Default.Language,
-                title = stringResource(R.string.language),
-                subtitle = if (AppCompatDelegate.getApplicationLocales().toLanguageTags().contains("en")) stringResource(R.string.english) else stringResource(R.string.arabic),
-                onClick = { showLanguageDialog = true }
-            )
-
-            var isDarkMode by remember { mutableStateOf(user?.isDarkMode) }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.dark_mode), style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = when(isDarkMode) {
-                            true -> stringResource(R.string.dark_mode_on)
-                            false -> stringResource(R.string.dark_mode_off)
-                            else -> stringResource(R.string.dark_mode_auto)
-                        },
-                        style = MaterialTheme.typography.bodySmall, 
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = isDarkMode == true,
-                    onCheckedChange = { 
-                        val newValue = if (isDarkMode == true) false else true
-                        isDarkMode = newValue
-                        auth.currentUser?.uid?.let { uid ->
-                            db.collection("users").document(uid).update("isDarkMode", newValue)
-                        }
-                    }
-                )
-            }
-
-            SettingsItem(
                 icon = Icons.Default.MonetizationOn,
                 title = stringResource(R.string.default_currency),
                 subtitle = user?.defaultCurrency ?: stringResource(R.string.currency_yer),
                 onClick = { showCurrencyDialog = true }
             )
 
-            var voiceInstructionsEnabled by remember { mutableStateOf(user?.showVoiceInstructions ?: true) }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -208,9 +179,8 @@ fun SettingsScreen(
                     Text(stringResource(R.string.voice_instructions_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(
-                    checked = voiceInstructionsEnabled,
+                    checked = user?.showVoiceInstructions ?: true,
                     onCheckedChange = { 
-                        voiceInstructionsEnabled = it
                         auth.currentUser?.uid?.let { uid ->
                             db.collection("users").document(uid).update("showVoiceInstructions", it)
                         }
@@ -218,8 +188,8 @@ fun SettingsScreen(
                 )
             }
             
-            var appLockEnabled by remember { mutableStateOf(user?.isAppLockEnabled ?: false) }
-            var biometricEnabled by remember { mutableStateOf(user?.isBiometricEnabled ?: false) }
+            val appLockEnabled = user?.isAppLockEnabled ?: false
+            val biometricEnabled = user?.isBiometricEnabled ?: false
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -234,7 +204,6 @@ fun SettingsScreen(
                 Switch(
                     checked = appLockEnabled,
                     onCheckedChange = { 
-                        appLockEnabled = it
                         auth.currentUser?.uid?.let { uid ->
                             db.collection("users").document(uid).update("isAppLockEnabled", it)
                         }
@@ -243,7 +212,6 @@ fun SettingsScreen(
             }
 
             if (appLockEnabled) {
-                // خيار تفعيل البصمة يظهر فقط إذا كان القفل مفعلاً
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -257,7 +225,6 @@ fun SettingsScreen(
                     Switch(
                         checked = biometricEnabled,
                         onCheckedChange = { 
-                            biometricEnabled = it
                             auth.currentUser?.uid?.let { uid ->
                                 db.collection("users").document(uid).update("isBiometricEnabled", it)
                             }
@@ -276,8 +243,6 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             SettingsSectionTitle(title = stringResource(R.string.debt_notifications))
-            var debtNotificationEnabled by remember { mutableStateOf(user?.debtNotificationEnabled ?: true) }
-
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -289,9 +254,8 @@ fun SettingsScreen(
                     Text(stringResource(R.string.auto_notification_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(
-                    checked = debtNotificationEnabled,
+                    checked = user?.debtNotificationEnabled ?: true,
                     onCheckedChange = { 
-                        debtNotificationEnabled = it
                         auth.currentUser?.uid?.let { uid ->
                             db.collection("users").document(uid).update("debtNotificationEnabled", it)
                         }
@@ -359,11 +323,9 @@ fun SettingsScreen(
                 title = stringResource(R.string.create_backup),
                 subtitle = stringResource(R.string.create_backup_subtitle),
                 onClick = {
-                    isExporting = true
-                    fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
-                        BackupUtils.exportBackup(context, user, customers, transactions)
-                        isExporting = false
-                    }
+                    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                    val prefix = context.getString(R.string.backup_file_prefix)
+                    exportLauncher.launch("$prefix$timeStamp.json")
                 }
             )
 
@@ -411,7 +373,7 @@ fun SettingsScreen(
                     try {
                         val supportNumber = appSettings.supportPhone
                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                            data = Uri.parse("https://api.whatsapp.com/send?phone=$supportNumber&text=${URLEncoder.encode(context.getString(R.string.whatsapp_support_message), "UTF-8")}")
+                            data = Uri.parse("https://api.whatsapp.com/send?phone=$supportNumber&text=${java.net.URLEncoder.encode(context.getString(R.string.whatsapp_support_message), "UTF-8")}")
                         }
                         context.startActivity(intent)
                     } catch (e: Exception) {
@@ -426,7 +388,6 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         auth.signOut()
-                        onBack()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.error)
@@ -496,7 +457,7 @@ fun SettingsScreen(
                     value = newPin,
                     onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) newPin = it },
                     label = { Text(stringResource(R.string.new_pin_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                 )
             },
             confirmButton = {
@@ -592,7 +553,7 @@ fun SettingsScreen(
                     )
                     if (template.isEmpty()) {
                         Text(
-                            text = stringResource(R.string.trial_period), // Reuse a label or add a new one like "Using default"
+                            text = stringResource(R.string.trial_period),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(top = 4.dp)
@@ -610,51 +571,6 @@ fun SettingsScreen(
                 TextButton(onClick = { showTemplateDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
-    }
-
-    if (showLanguageDialog) {
-        AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = { Text(stringResource(R.string.choose_language)) },
-            text = {
-                Column {
-                    LanguageOption(
-                        title = stringResource(R.string.arabic),
-                        selected = !AppCompatDelegate.getApplicationLocales().toLanguageTags().contains("en"),
-                        onClick = {
-                            val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags("ar")
-                            AppCompatDelegate.setApplicationLocales(appLocale)
-                            showLanguageDialog = false
-                        }
-                    )
-                    LanguageOption(
-                        title = stringResource(R.string.english),
-                        selected = AppCompatDelegate.getApplicationLocales().toLanguageTags().contains("en"),
-                        onClick = {
-                            val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags("en")
-                            AppCompatDelegate.setApplicationLocales(appLocale)
-                            showLanguageDialog = false
-                        }
-                    )
-                }
-            },
-            confirmButton = {}
-        )
-    }
-}
-
-@Composable
-fun LanguageOption(title: String, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(text = title, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

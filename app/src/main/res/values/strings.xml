@@ -235,6 +235,9 @@
     <string name="login_failed">فشل تسجيل الدخول</string>
     <string name="passwords_not_matching">كلمات المرور غير متطابقة</string>
     <string name="fill_all_data">يرجى ملء جميع البيانات</string>
+    <string name="agree_to_terms">أوافق وأفهم طبيعة عمل التطبيق كمدونة ديون شخصية</string>
+    <string name="must_agree_to_terms">يجب الموافقة على شروط الاستخدام للمتابعة</string>
+    <string name="no_customers_voice_error">قائمة العملاء فارغة! يرجى إضافة عملاء أولاً لتتمكن من استخدام الأوامر الصوتية.</string>
 
     <!-- Activation Screen -->
     <string name="payment_methods_available">طرق الدفع المتاحة:</string>
