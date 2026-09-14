@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
@@ -26,20 +27,34 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sadad.ye.R
+import com.sadad.ye.data.DataRepository
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
+fun AddCustomerScreen(repository: DataRepository, onBack: () -> Unit, defaultAppCurrency: String) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var initialBalance by remember { mutableStateOf("") }
     var debtLimit by remember { mutableStateOf("") }
+    var customerCurrency by remember { mutableStateOf(defaultAppCurrency) }
     var isLoading by remember { mutableStateOf(false) }
+    var showCurrencyDialog by remember { mutableStateOf(false) }
+
+    val currencies = listOf(
+        stringResource(R.string.currency_yer),
+        stringResource(R.string.currency_sar),
+        stringResource(R.string.currency_aed),
+        stringResource(R.string.currency_usd),
+        stringResource(R.string.currency_egp)
+    )
     
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -156,7 +171,7 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
             OutlinedTextField(
                 value = initialBalance,
                 onValueChange = { initialBalance = it },
-                label = { Text(stringResource(R.string.previous_debt_balance, currency)) },
+                label = { Text(stringResource(R.string.previous_debt_balance, customerCurrency)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -184,8 +199,7 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
                         disabledTextColor = MaterialTheme.colorScheme.onSurface,
                         disabledBorderColor = MaterialTheme.colorScheme.outline,
                         disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
             }
 
@@ -194,7 +208,7 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
             OutlinedTextField(
                 value = debtLimit,
                 onValueChange = { debtLimit = it },
-                label = { Text(stringResource(R.string.debt_limit_label_with_currency, currency)) },
+                label = { Text(stringResource(R.string.debt_limit_label_with_currency, customerCurrency)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -202,6 +216,26 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
                     imeAction = ImeAction.Done
                 ),
                 placeholder = { Text(stringResource(R.string.debt_limit_hint)) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = customerCurrency,
+                onValueChange = { },
+                label = { Text(stringResource(R.string.default_currency)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showCurrencyDialog = true },
+                enabled = false,
+                readOnly = true,
+                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -217,14 +251,44 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
                     val balanceAmount = initialBalance.replaceDigitsToEnglish().toDoubleOrNull() ?: 0.0
                     val limitAmount = debtLimit.replaceDigitsToEnglish().toDoubleOrNull() ?: 0.0
                     
-                    checkPhoneAndSave(name.trim(), phone.trim(), balanceAmount, limitAmount, selectedDate, context) { success, error ->
-                        isLoading = false
-                        if (success) {
-                            Toast.makeText(context, context.getString(R.string.customer_added_success), Toast.LENGTH_SHORT).show()
-                            onBack()
-                        } else {
-                            Toast.makeText(context, error ?: context.getString(R.string.error_occurred), Toast.LENGTH_LONG).show()
+                    scope.launch {
+                        val auth = FirebaseAuth.getInstance()
+                        val userId = auth.currentUser?.uid ?: ""
+                        
+                        // فحص التكرار محلياً
+                        val currentCustomers = repository.getCustomers(userId).first()
+                        if (currentCustomers.any { it.name == name.trim() }) {
+                            Toast.makeText(context, context.getString(R.string.customer_name_exists), Toast.LENGTH_SHORT).show()
+                            isLoading = false
+                            return@launch
                         }
+                        if (currentCustomers.any { it.phoneNumber == phone.trim() }) {
+                            Toast.makeText(context, context.getString(R.string.phone_number_exists), Toast.LENGTH_SHORT).show()
+                            isLoading = false
+                            return@launch
+                        }
+
+                        val customerId = UUID.randomUUID().toString()
+                        val customer = Customer(customerId = customerId, name = name.trim(), phoneNumber = phone.trim(), userId = userId, debtLimit = limitAmount, currency = customerCurrency)
+                        repository.addCustomer(customer)
+
+                        if (balanceAmount > 0) {
+                            val transactionId = UUID.randomUUID().toString()
+                            val transaction = Transaction(
+                                transactionId = transactionId, 
+                                customerId = customerId, 
+                                userId = userId,
+                                amount = balanceAmount, 
+                                note = context.getString(R.string.previous_balance_note),
+                                debt = true, 
+                                date = selectedDate
+                            )
+                            repository.addTransaction(transaction)
+                        }
+
+                        isLoading = false
+                        Toast.makeText(context, context.getString(R.string.customer_added_success), Toast.LENGTH_SHORT).show()
+                        onBack()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -242,61 +306,28 @@ fun AddCustomerScreen(onBack: () -> Unit, currency: String) {
             }
         }
     }
-}
 
-private fun checkPhoneAndSave(name: String, phone: String, initialBalance: Double, limit: Double, date: Long, context: android.content.Context, onResult: (Boolean, String?) -> Unit) {
-    val db = FirebaseFirestore.getInstance()
-    val auth = FirebaseAuth.getInstance()
-    val userId = auth.currentUser?.uid ?: return
-
-    // 1. فحص تكرار الاسم أولاً
-    db.collection("customers")
-        .whereEqualTo("userId", userId)
-        .whereEqualTo("name", name)
-        .get()
-        .addOnSuccessListener { nameDocs ->
-            if (!nameDocs.isEmpty) {
-                onResult(false, context.getString(R.string.customer_name_exists))
-                return@addOnSuccessListener
-            }
-
-            // 2. إذا كان الاسم جديداً، نفحص تكرار الرقم
-            db.collection("customers")
-                .whereEqualTo("userId", userId)
-                .whereEqualTo("phoneNumber", phone)
-                .get()
-                .addOnSuccessListener { phoneDocs ->
-                    if (phoneDocs.isEmpty) {
-                        saveCustomerWithBalance(name, phone, userId, initialBalance, limit, date, context, onResult)
-                    } else {
-                        onResult(false, context.getString(R.string.phone_number_exists))
+    if (showCurrencyDialog) {
+        AlertDialog(
+            onDismissRequest = { showCurrencyDialog = false },
+            title = { Text(stringResource(R.string.choose_currency)) },
+            text = {
+                Column {
+                    currencies.forEach { curr ->
+                        Text(
+                            text = curr,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    customerCurrency = curr
+                                    showCurrencyDialog = false
+                                }
+                                .padding(16.dp)
+                        )
                     }
                 }
-                .addOnFailureListener { onResult(false, it.localizedMessage) }
-        }
-        .addOnFailureListener { onResult(false, it.localizedMessage) }
-}
-
-private fun saveCustomerWithBalance(name: String, phone: String, userId: String, initialBalance: Double, limit: Double, date: Long, context: android.content.Context, onResult: (Boolean, String?) -> Unit) {
-    val db = FirebaseFirestore.getInstance()
-    val batch = db.batch()
-    val customerId = UUID.randomUUID().toString()
-    val customer = Customer(customerId = customerId, name = name, phoneNumber = phone, userId = userId, debtLimit = limit)
-    batch.set(db.collection("customers").document(customerId), customer)
-
-    if (initialBalance > 0) {
-        val transactionId = UUID.randomUUID().toString()
-        val transaction = Transaction(
-            transactionId = transactionId, 
-            customerId = customerId, 
-            userId = userId, // إضافة الـ userId هنا
-            amount = initialBalance, 
-            note = context.getString(R.string.previous_balance_note),
-            debt = true, 
-            date = date
+            },
+            confirmButton = {}
         )
-        batch.set(db.collection("transactions").document(transactionId), transaction)
     }
-
-    batch.commit().addOnSuccessListener { onResult(true, null) }.addOnFailureListener { onResult(false, it.localizedMessage) }
 }

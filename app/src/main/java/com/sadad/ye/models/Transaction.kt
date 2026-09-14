@@ -1,12 +1,17 @@
 package com.sadad.ye.models
 
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.PrimaryKey
 import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 /**
  * تمثل عملية مالية (دين أو سداد)
  */
+@Entity(tableName = "transactions")
 data class Transaction(
+    @PrimaryKey
     @get:PropertyName("transactionId") @set:PropertyName("transactionId")
     var transactionId: String = "",
     
@@ -32,8 +37,15 @@ data class Transaction(
     var sent: Boolean = false,
 
     @get:PropertyName("sentViaWhatsApp") @set:PropertyName("sentViaWhatsApp")
-    var sentViaWhatsApp: Boolean = false // تمييز إذا أرسلت عبر واتساب أو يدوياً
+    var sentViaWhatsApp: Boolean = false, // تمييز إذا أرسلت عبر واتساب أو يدوياً
+
+    @get:Exclude
+    var isSynced: Boolean = true,
+
+    @get:Exclude
+    var lastUpdated: Long = System.currentTimeMillis()
 ) {
     @get:Exclude
+    @get:Ignore
     val isDebt: Boolean get() = debt
 }

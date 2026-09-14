@@ -36,11 +36,14 @@ import androidx.core.net.toUri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sadad.ye.R
+import com.sadad.ye.data.DataRepository
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
 import com.sadad.ye.models.User
 import com.sadad.ye.utils.NotificationUtils
+import com.sadad.ye.utils.PdfReportGenerator
 import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.util.*
@@ -48,9 +51,11 @@ import java.text.SimpleDateFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: String, user: User? = null) {
+fun CustomerDetailsScreen(customer: Customer, repository: DataRepository, onBack: () -> Unit, defaultAppCurrency: String, user: User? = null) {
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    
+    val currency = if (customer.currency.isNotEmpty()) customer.currency else defaultAppCurrency
     
     val showAddDialog = remember { mutableStateOf(false) }
     val showEditDialog = remember { mutableStateOf<Transaction?>(null) }
@@ -59,6 +64,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
     val showMenu = remember { mutableStateOf(false) }
     val showDeleteConfirm = remember { mutableStateOf(false) }
     val showReportOptions = remember { mutableStateOf(false) }
+    val showWhatsAppChoice = remember { mutableStateOf(false) }
     val showDateRangePicker = remember { mutableStateOf(false) }
     
     val context = LocalContext.current
@@ -82,16 +88,13 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
     val balance = totalDebt - totalPaid
 
     LaunchedEffect(customer.customerId) {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("transactions")
-            .whereEqualTo("customerId", customer.customerId)
-            .addSnapshotListener { value, _ ->
-                if (value != null) {
-                    val list = value.toObjects(Transaction::class.java)
-                    transactions = list.sortedByDescending { it.date }
-                }
+        coroutineScope.launch {
+            repository.getTransactions(customer.userId).collectLatest { allTrans ->
+                transactions = allTrans.filter { it.customerId == customer.customerId }
+                    .sortedByDescending { it.date }
                 isLoading = false
             }
+        }
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides (if (Locale.getDefault().language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr)) {
@@ -207,27 +210,25 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
                                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
                             ) {
                                 val sortedTransactions = transactions.sortedBy { it.date }
-                                val firstUnsentId = sortedTransactions.find { !it.sent }?.transactionId
+                                val lastUnsentId = transactions.filter { !it.sent }.maxByOrNull { it.date }?.transactionId
 
                                 items(transactions, key = { it.transactionId }) { transaction ->
                                     TransactionItem(
                                         transaction = transaction,
                                         currency = currency,
-                                        isNextToSent = transaction.transactionId == firstUnsentId,
+                                        isNextToSent = transaction.transactionId == lastUnsentId,
                                         onEdit = { showEditDialog.value = it },
-                                        onSend = { trans ->
-                                            val index = sortedTransactions.indexOfFirst { it.transactionId == trans.transactionId }
-                                            val transactionsUntilNow = if (index != -1) sortedTransactions.take(index + 1) else emptyList()
-                                            val debtUntilNow = transactionsUntilNow.filter { it.debt }.sumOf { it.amount }
-                                            val paidUntilNow = transactionsUntilNow.filter { !it.debt }.sumOf { it.amount }
-                                            val balanceUntilNow = debtUntilNow - paidUntilNow
-                                            
-                                            sendSingleTransactionWhatsApp(context, customer, trans, balanceUntilNow, currency)
+                                        onSend = { _ ->
+                                            val unsentTransactions = transactions.filter { !it.sent }.sortedBy { it.date }
+                                            if (unsentTransactions.isNotEmpty()) {
+                                                sendBatchTransactionsWhatsApp(context, repository, customer, unsentTransactions, balance, currency)
+                                            }
                                         },
                                         onDelete = { showDeleteTransactionConfirm.value = it },
                                         onMarkAsSent = { trans ->
-                                            FirebaseFirestore.getInstance().collection("transactions")
-                                                .document(trans.transactionId).update(mapOf("sent" to true, "sentViaWhatsApp" to false))
+                                            coroutineScope.launch {
+                                                repository.addTransaction(trans.copy(sent = true, sentViaWhatsApp = false))
+                                            }
                                         }
                                     )
                                 }
@@ -263,6 +264,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
         AddTransactionDialog(
             customer = customer,
             user = user,
+            repository = repository,
             currentBalance = balance,
             currency = currency,
             onDismiss = { showAddDialog.value = false },
@@ -280,6 +282,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
     showEditDialog.value?.let { transaction ->
         EditTransactionDialog(
             transaction = transaction,
+            repository = repository,
             onConfirm = { id -> targetScrollId = id },
             onDismiss = { showEditDialog.value = null }
         )
@@ -292,7 +295,7 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
             text = { Text(stringResource(R.string.send_notice_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
-                    sendSingleTransactionWhatsApp(context, customer, transaction, balance, currency)
+                    sendSingleTransactionWhatsApp(context, repository, customer, transaction, balance, currency)
                     showSendConfirmDialog.value = null
                 }) { Text(stringResource(R.string.send)) }
             },
@@ -310,7 +313,10 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
             confirmButton = {
                 Button(
                     onClick = {
-                        deleteTransaction(context, transaction, customer, user)
+                        coroutineScope.launch {
+                            repository.deleteTransaction(transaction)
+                            if (user?.debtNotificationEnabled == true) NotificationUtils.cancelNotification(context, customer.customerId)
+                        }
                         showDeleteTransactionConfirm.value = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -330,8 +336,9 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
             confirmButton = {
                 Button(
                     onClick = {
-                        clearHistoryAndSetBalance(customer.customerId, balance, context) { success ->
-                            if (success) Toast.makeText(context, context.getString(R.string.clear_history_success), Toast.LENGTH_SHORT).show()
+                        coroutineScope.launch {
+                            clearHistoryAndSetBalance(repository, customer.customerId, balance, context)
+                            Toast.makeText(context, context.getString(R.string.clear_history_success), Toast.LENGTH_SHORT).show()
                         }
                         showDeleteConfirm.value = false
                     },
@@ -351,11 +358,41 @@ fun CustomerDetailsScreen(customer: Customer, onBack: () -> Unit, currency: Stri
             currentBalance = balance,
             currency = currency,
             user = user,
+            onPdfClick = { showWhatsAppChoice.value = true },
             onCustomRangeClick = { 
                 showReportOptions.value = false
                 showDateRangePicker.value = true 
             },
             onDismiss = { showReportOptions.value = false }
+        )
+    }
+
+    if (showWhatsAppChoice.value) {
+        AlertDialog(
+            onDismissRequest = { showWhatsAppChoice.value = false },
+            title = { Text("اختر تطبيق الإرسال") },
+            text = {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("واتساب (WhatsApp)") },
+                        leadingContent = { Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF25D366)) },
+                        modifier = Modifier.clickable { 
+                            showWhatsAppChoice.value = false
+                            PdfReportGenerator.generateCustomerReport(context, user, customer, transactions, "com.whatsapp")
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("واتساب الأعمال (Business)") },
+                        leadingContent = { Icon(Icons.Default.BusinessCenter, contentDescription = null, tint = Color(0xFF075E54)) },
+                        modifier = Modifier.clickable { 
+                            showWhatsAppChoice.value = false
+                            PdfReportGenerator.generateCustomerReport(context, user, customer, transactions, "com.whatsapp.w4b")
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showWhatsAppChoice.value = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -380,15 +417,7 @@ fun TransactionItem(
     onMarkAsSent: (Transaction) -> Unit
 ) {
     val dateFormat = SimpleDateFormat("yyyy/MM/dd - hh:mm a", Locale.getDefault())
-    var isPendingSync by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
-
-    LaunchedEffect(transaction.transactionId) {
-        FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId)
-            .addSnapshotListener { snapshot, _ ->
-                isPendingSync = snapshot?.metadata?.hasPendingWrites() ?: false
-            }
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -406,7 +435,7 @@ fun TransactionItem(
                             color = if (transaction.debt) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        if (isPendingSync) {
+                        if (!transaction.isSynced) {
                             Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         } else {
                             Icon(Icons.Default.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
@@ -426,7 +455,12 @@ fun TransactionItem(
                         Text(text = transaction.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
-                Text(text = "${formatAmount(transaction.amount)} $currency", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    text = "${formatAmount(transaction.amount)} $currency",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (transaction.debt) MaterialTheme.colorScheme.error else Color(0xFF388E3C)
+                )
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
@@ -476,13 +510,14 @@ fun TransactionItem(
 }
 
 @Composable
-fun AddTransactionDialog(customer: Customer, user: User?, currentBalance: Double, currency: String, onDismiss: () -> Unit, onConfirm: (Transaction) -> Unit) {
+fun AddTransactionDialog(customer: Customer, user: User?, repository: DataRepository, currentBalance: Double, currency: String, onDismiss: () -> Unit, onConfirm: (Transaction) -> Unit) {
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<Boolean?>(null) }
     var selectedDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val auth = FirebaseAuth.getInstance()
 
     AlertDialog(
@@ -533,16 +568,19 @@ fun AddTransactionDialog(customer: Customer, user: User?, currentBalance: Double
                     Toast.makeText(context, context.getString(R.string.debt_limit_exceeded), Toast.LENGTH_LONG).show()
                     return@Button
                 }
-                val db = FirebaseFirestore.getInstance()
-                val id = UUID.randomUUID().toString()
+                
                 val userId = auth.currentUser?.uid ?: ""
+                val id = UUID.randomUUID().toString()
                 val trans = Transaction(id, customer.customerId, userId, amt, note, selectedDate, selectedType!!)
-                db.collection("transactions").document(id).set(trans)
-                if (user?.debtNotificationEnabled == true && customer.debtLimit > 0) {
-                    val newBalance = currentBalance + (if (selectedType!!) amt else -amt)
-                    NotificationUtils.scheduleDebtNotification(context, customer, newBalance, selectedDate)
+                
+                scope.launch {
+                    repository.addTransaction(trans)
+                    if (user?.debtNotificationEnabled == true && customer.debtLimit > 0) {
+                        val newBalance = currentBalance + (if (selectedType!!) amt else -amt)
+                        NotificationUtils.scheduleDebtNotification(context, customer, newBalance, selectedDate)
+                    }
+                    onConfirm(trans)
                 }
-                onConfirm(trans)
             }) { Text(stringResource(R.string.add)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
@@ -550,13 +588,14 @@ fun AddTransactionDialog(customer: Customer, user: User?, currentBalance: Double
 }
 
 @Composable
-fun EditTransactionDialog(transaction: Transaction, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+fun EditTransactionDialog(transaction: Transaction, repository: DataRepository, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     var amount by remember { mutableStateOf(transaction.amount.toString()) }
     var note by remember { mutableStateOf(transaction.note) }
     var isDebt by remember { mutableStateOf(transaction.debt) }
     var selectedDate by remember { mutableLongStateOf(transaction.date) }
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -599,9 +638,10 @@ fun EditTransactionDialog(transaction: Transaction, onConfirm: (String) -> Unit,
             Button(onClick = {
                 val amt = amount.toDoubleOrNull() ?: 0.0
                 if (amt > 0) {
-                    FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId)
-                        .update(mapOf("amount" to amt, "note" to note, "debt" to isDebt, "date" to selectedDate))
-                    onDismiss()
+                    scope.launch {
+                        repository.addTransaction(transaction.copy(amount = amt, note = note, debt = isDebt, date = selectedDate))
+                        onDismiss()
+                    }
                 }
             }) { Text(stringResource(R.string.edit)) }
         },
@@ -616,6 +656,7 @@ fun ReportOptionsDialog(
     currentBalance: Double, 
     currency: String, 
     user: User?,
+    onPdfClick: () -> Unit,
     onCustomRangeClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -625,6 +666,14 @@ fun ReportOptionsDialog(
         title = { Text(stringResource(R.string.share_report_title)) },
         text = {
             Column {
+                ListItem(
+                    headlineContent = { Text("تصدير كشف حساب PDF (احترافي)") },
+                    leadingContent = { Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = Color.Red) },
+                    modifier = Modifier.clickable { 
+                        onPdfClick()
+                        onDismiss()
+                    }
+                )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.full_account_statement)) },
                     leadingContent = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
@@ -748,7 +797,69 @@ fun sendWhatsAppReportWithRange(context: Context, customer: Customer, startDate:
     } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_send), Toast.LENGTH_SHORT).show() }
 }
 
-fun sendSingleTransactionWhatsApp(context: Context, customer: Customer, transaction: Transaction, currentBalance: Double, currency: String) {
+fun sendBatchTransactionsWhatsApp(
+    context: Context, 
+    repository: DataRepository, 
+    customer: Customer, 
+    unsentTransactions: List<Transaction>, 
+    currentBalance: Double, 
+    currency: String
+) {
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val isOnline = connectivityManager.activeNetwork?.let {
+        connectivityManager.getNetworkCapabilities(it)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    } ?: false
+    
+    if (!isOnline) { 
+        Toast.makeText(context, context.getString(R.string.no_internet_error), Toast.LENGTH_LONG).show()
+        return 
+    }
+
+    val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
+    val sb = StringBuilder("*إشعار عمليات جديدة*\n")
+    sb.append("${context.getString(R.string.report_customer_name)}: ${customer.name}\n")
+    sb.append("-----------------\n")
+
+    val unsentTotal = unsentTransactions.sumOf { if (it.debt) it.amount else -it.amount }
+    val previousBalance = currentBalance - unsentTotal
+    
+    sb.append("الرصيد السابق: ${formatAmount(previousBalance)} $currency\n")
+    sb.append("-----------------\n")
+
+    unsentTransactions.forEach { trans ->
+        val type = if (trans.debt) "دين (+)" else "سداد (-)"
+        sb.append("• ${dateFormat.format(Date(trans.date))}\n")
+        sb.append("  $type: ${formatAmount(trans.amount)} $currency\n")
+        if (trans.note.isNotEmpty()) sb.append("  ملاحظة: ${trans.note}\n")
+    }
+
+    sb.append("-----------------\n")
+    val balanceText = when {
+        currentBalance > 0 -> "الرصيد الذي عليكم: ${formatAmount(currentBalance)} $currency"
+        currentBalance < 0 -> "الرصيد لكم: ${formatAmount(kotlin.math.abs(currentBalance))} $currency"
+        else -> "الرصيد الحالي: 0 $currency"
+    }
+    sb.append("*$balanceText*")
+
+    val phoneNumber = customer.phoneNumber.filter { it.isDigit() }.let { if (it.length == 9) "967$it" else it }
+    try {
+        val intent = Intent(Intent.ACTION_VIEW).apply { 
+            data = Uri.parse("https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(sb.toString(), "UTF-8")}") 
+        }
+        context.startActivity(intent)
+        
+        // تحديث كافة العمليات كمرسلة
+        kotlinx.coroutines.MainScope().launch {
+            unsentTransactions.forEach { trans ->
+                repository.addTransaction(trans.copy(sent = true, sentViaWhatsApp = true))
+            }
+        }
+    } catch (e: Exception) { 
+        Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() 
+    }
+}
+
+fun sendSingleTransactionWhatsApp(context: Context, repository: DataRepository, customer: Customer, transaction: Transaction, currentBalance: Double, currency: String) {
     val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     val network = connectivityManager.activeNetwork
     val capabilities = connectivityManager.getNetworkCapabilities(network)
@@ -767,13 +878,15 @@ fun sendSingleTransactionWhatsApp(context: Context, customer: Customer, transact
     try {
         val intent = Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://api.whatsapp.com/send?phone=$phoneNumber&text=${URLEncoder.encode(message, "UTF-8")}") }
         context.startActivity(intent)
-        FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId).update(mapOf("sent" to true, "sentViaWhatsApp" to true))
+        
+        kotlinx.coroutines.MainScope().launch {
+            repository.addTransaction(transaction.copy(sent = true, sentViaWhatsApp = true))
+        }
     } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() }
 }
 
 fun deleteTransaction(context: Context, transaction: Transaction, customer: Customer, user: User?) {
-    FirebaseFirestore.getInstance().collection("transactions").document(transaction.transactionId).delete()
-    if (user?.debtNotificationEnabled == true) NotificationUtils.cancelNotification(context, customer.customerId)
+    // تم نقل الكود إلى داخل الزر لاستخدام الـ Repository
 }
 
 fun sendWhatsAppReport(context: Context, customer: Customer, currentBalance: Double, reportTransactions: List<Transaction>, title: String, currency: String) {
@@ -821,17 +934,24 @@ fun sendWhatsAppReminder(context: Context, customer: Customer, balance: Double, 
     } catch (e: Exception) { Toast.makeText(context, context.getString(R.string.whatsapp_error_open), Toast.LENGTH_SHORT).show() }
 }
 
-fun clearHistoryAndSetBalance(customerId: String, balance: Double, context: Context, onResult: (Boolean) -> Unit) {
-    val db = FirebaseFirestore.getInstance()
+suspend fun clearHistoryAndSetBalance(repository: DataRepository, customerId: String, balance: Double, context: Context) {
     val auth = FirebaseAuth.getInstance()
     val userId = auth.currentUser?.uid ?: ""
-    db.collection("transactions").whereEqualTo("customerId", customerId).get().addOnSuccessListener { querySnapshot ->
-        val batch = db.batch()
-        querySnapshot.documents.forEach { batch.delete(it.reference) }
-        if (balance != 0.0) {
-            val id = UUID.randomUUID().toString()
-            batch.set(db.collection("transactions").document(id), Transaction(id, customerId, userId, kotlin.math.abs(balance), context.getString(R.string.previous_balance_note), System.currentTimeMillis(), balance > 0))
-        }
-        batch.commit().addOnSuccessListener { onResult(true) }.addOnFailureListener { onResult(false) }
+    
+    repository.deleteTransactionsByCustomer(customerId)
+    
+    if (balance != 0.0) {
+        val id = UUID.randomUUID().toString()
+        repository.addTransaction(
+            Transaction(
+                transactionId = id, 
+                customerId = customerId, 
+                userId = userId, 
+                amount = kotlin.math.abs(balance), 
+                note = context.getString(R.string.previous_balance_note), 
+                date = System.currentTimeMillis(), 
+                debt = balance > 0
+            )
+        )
     }
 }

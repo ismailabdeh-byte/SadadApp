@@ -26,23 +26,27 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sadad.ye.R
+import com.sadad.ye.data.DataRepository
+import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DailyReportScreen(onBack: () -> Unit, currency: String) {
+fun DailyReportScreen(repository: DataRepository, onBack: () -> Unit, currency: String) {
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
-    var customers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var customers by remember { mutableStateOf<List<Customer>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
     
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val auth = FirebaseAuth.getInstance()
     val currentUserId = auth.currentUser?.uid ?: ""
-    val db = FirebaseFirestore.getInstance()
 
     val unknownCustomerStr = stringResource(R.string.unknown_customer)
 
@@ -50,56 +54,33 @@ fun DailyReportScreen(onBack: () -> Unit, currency: String) {
         if (currentUserId.isEmpty()) return@LaunchedEffect
         isLoading = true
         
-        // 1. جلب خريطة أسماء العملاء
-        db.collection("customers")
-            .whereEqualTo("userId", currentUserId)
-            .get()
-            .addOnSuccessListener { customerSnapshot ->
-                val customerMap = customerSnapshot.documents.associate { 
-                    it.id to (it.getString("name") ?: unknownCustomerStr)
-                }
-                customers = customerMap
+        scope.launch {
+            // 1. جلب العملاء محلياً
+            val customerList = repository.getCustomers(currentUserId).first()
+            customers = customerList
+            val customerMap = customerList.associate { it.customerId to it.name }
 
-                // 2. تحديد وقت بداية ونهاية اليوم المختار
-                val calendar = selectedDate.clone() as Calendar
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
-                val startTime = calendar.timeInMillis
+            // 2. تحديد وقت بداية ونهاية اليوم المختار
+            val calendar = selectedDate.clone() as Calendar
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            val startTime = calendar.timeInMillis
 
-                calendar.set(Calendar.HOUR_OF_DAY, 23)
-                calendar.set(Calendar.MINUTE, 59)
-                calendar.set(Calendar.SECOND, 59)
-                calendar.set(Calendar.MILLISECOND, 999)
-                val endTime = calendar.timeInMillis
+            calendar.set(Calendar.HOUR_OF_DAY, 23)
+            calendar.set(Calendar.MINUTE, 59)
+            calendar.set(Calendar.SECOND, 59)
+            calendar.set(Calendar.MILLISECOND, 999)
+            val endTime = calendar.timeInMillis
 
-                // 3. تحسين: جلب العمليات المفلترة بالتاريخ والمستخدم مباشرة من السيرفر
-                db.collection("transactions")
-                    .whereEqualTo("userId", currentUserId)
-                    .whereGreaterThanOrEqualTo("date", startTime)
-                    .whereLessThanOrEqualTo("date", endTime)
-                    .get()
-                    .addOnSuccessListener { snapshot ->
-                        val list = snapshot.toObjects(Transaction::class.java)
-                        transactions = list.sortedByDescending { it.date }
-                        isLoading = false
-                    }
-                    .addOnFailureListener {
-                        // في حال عدم وجود Index، نستخدم الطريقة الاحتياطية
-                        val ids = customerMap.keys.toList()
-                        if (ids.isNotEmpty()) {
-                            fetchLegacy(db, ids, startTime, endTime) { legacyList ->
-                                transactions = legacyList.sortedByDescending { it.date }
-                                isLoading = false
-                            }
-                        } else {
-                            transactions = emptyList()
-                            isLoading = false
-                        }
-                    }
-            }
-            .addOnFailureListener { isLoading = false }
+            // 3. جلب العمليات المفلترة محلياً
+            val allTransactions = repository.getTransactions(currentUserId).first()
+            transactions = allTransactions.filter { it.date in startTime..endTime }
+                .sortedByDescending { it.date }
+            
+            isLoading = false
+        }
     }
 
     val totalDebt = transactions.filter { it.debt }.sumOf { it.amount }
@@ -117,7 +98,8 @@ fun DailyReportScreen(onBack: () -> Unit, currency: String) {
                 actions = {
                     if (transactions.isNotEmpty()) {
                         IconButton(onClick = { 
-                            shareDailySummary(context, selectedDate, transactions, customers, totalDebt, totalPaid, currency) 
+                            val customerMap = customers.associate { it.customerId to it.name }
+                            shareDailySummary(context, selectedDate, transactions, customerMap, totalDebt, totalPaid, currency) 
                         }) {
                             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.share), tint = Color(0xFF388E3C))
                         }
@@ -170,7 +152,11 @@ fun DailyReportScreen(onBack: () -> Unit, currency: String) {
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(transactions) { transaction ->
-                        ReportTransactionItem(transaction, customers[transaction.customerId] ?: unknownCustomerStr, currency)
+                        val customer = customers.find { it.customerId == transaction.customerId }
+                        val customerName = customer?.name ?: unknownCustomerStr
+                        val customerCurrency = if (customer?.currency?.isNotEmpty() == true) customer.currency else currency
+                        
+                        ReportTransactionItem(transaction, customerName, customerCurrency)
                     }
                 }
             }
@@ -213,19 +199,6 @@ fun ReportTransactionItem(transaction: Transaction, customerName: String, curren
                 }
             }
         }
-    }
-}
-
-private fun fetchLegacy(db: FirebaseFirestore, ids: List<String>, start: Long, end: Long, onResult: (List<Transaction>) -> Unit) {
-    val all = mutableListOf<Transaction>()
-    val chunks = ids.chunked(30)
-    var count = 0
-    chunks.forEach { chunk ->
-        db.collection("transactions").whereIn("customerId", chunk).get().addOnSuccessListener { snapshot ->
-            all.addAll(snapshot.toObjects(Transaction::class.java).filter { it.date in start..end })
-            count++
-            if (count == chunks.size) onResult(all)
-        }.addOnFailureListener { count++; if (count == chunks.size) onResult(all) }
     }
 }
 

@@ -86,7 +86,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                                     userId = firebaseUser?.uid ?: "",
                                     name = firebaseUser?.displayName ?: "",
                                     phoneNumber = firebaseUser?.phoneNumber ?: "",
-                                    createdAt = com.google.firebase.Timestamp.now()
+                                    createdAtLong = System.currentTimeMillis()
                                 )
                                 userRef.set(newUser).addOnCompleteListener { onAuthSuccess() }
                             } else {
@@ -237,7 +237,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                                             userId = firebaseUser?.uid ?: "",
                                             name = name,
                                             phoneNumber = phone,
-                                            createdAt = com.google.firebase.Timestamp.now()
+                                            createdAtLong = System.currentTimeMillis()
                                         )
                                         db.collection("users").document(firebaseUser?.uid ?: "").set(newUser)
                                         onAuthSuccess()

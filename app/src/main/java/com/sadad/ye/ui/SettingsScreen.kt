@@ -3,6 +3,8 @@ package com.sadad.ye.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,9 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import com.sadad.ye.R
+import com.sadad.ye.data.DataRepository
 import com.sadad.ye.models.AppSettings
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
@@ -36,6 +37,9 @@ import com.sadad.ye.utils.AccountUtils
 import com.sadad.ye.utils.BackupUtils
 import com.sadad.ye.utils.ExportUtils
 import com.sadad.ye.utils.SubscriptionUtils
+import com.sadad.ye.utils.SyncUtils
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -44,16 +48,21 @@ import java.util.*
 fun SettingsScreen(
     user: User?,
     appSettings: AppSettings,
+    repository: DataRepository,
     onBack: () -> Unit,
     onAdminClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val auth = FirebaseAuth.getInstance()
     val db = FirebaseFirestore.getInstance()
     
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showNameDialog by remember { mutableStateOf(false) }
+    var showNameEnDialog by remember { mutableStateOf(false) }
+    var showPhoneDialog by remember { mutableStateOf(false) }
     var showAddressDialog by remember { mutableStateOf(false) }
+    var showAddressEnDialog by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
@@ -64,13 +73,16 @@ fun SettingsScreen(
     var isExporting by remember { mutableStateOf(false) }
     var isImporting by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
+    var isSyncing by remember { mutableStateOf(false) }
     
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         uri?.let {
             isExporting = true
-            fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+            scope.launch {
+                val customers = repository.getCustomers(auth.currentUser?.uid ?: "").first()
+                val transactions = repository.getTransactions(auth.currentUser?.uid ?: "").first()
                 val json = BackupUtils.generateBackupJson(user, customers, transactions)
                 try {
                     context.contentResolver.openOutputStream(it)?.use { output ->
@@ -93,6 +105,27 @@ fun SettingsScreen(
             BackupUtils.importBackup(context, it) { success, msg ->
                 isImporting = false
                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                if (success) {
+                    scope.launch {
+                        repository.syncWithCloud(forceDownload = true)
+                    }
+                }
+            }
+        }
+    }
+
+    val logoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {}
+            
+            user?.let { u ->
+                scope.launch {
+                    repository.saveUserLocally(u.copy(logoUri = it.toString(), isSynced = false))
+                }
             }
         }
     }
@@ -138,18 +171,49 @@ fun SettingsScreen(
             }
 
             SettingsSectionTitle(title = stringResource(R.string.account_profile))
+            
+            SettingsItem(
+                icon = Icons.Default.Image,
+                title = "شعار المتجر (Logo)",
+                subtitle = if (user?.logoUri?.isNotEmpty() == true) "تم اختيار شعار" else "اضغط لاختيار شعار للتقارير",
+                onClick = { logoLauncher.launch("image/*") }
+            )
+
             SettingsItem(
                 icon = Icons.Default.Store,
-                title = stringResource(R.string.store_name),
+                title = stringResource(R.string.store_name) + " (عربي)",
                 subtitle = user?.name ?: stringResource(R.string.default_user_name),
                 onClick = { showNameDialog = true }
             )
+
+            SettingsItem(
+                icon = Icons.Default.Store,
+                title = stringResource(R.string.store_name) + " (English)",
+                subtitle = user?.nameEn ?: "Set store name in English",
+                onClick = { showNameEnDialog = true }
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Phone,
+                title = stringResource(R.string.phone_number),
+                subtitle = user?.phoneNumber ?: "أضف رقم هاتف المتجر",
+                onClick = { showPhoneDialog = true }
+            )
+
             SettingsItem(
                 icon = Icons.Default.LocationOn,
-                title = stringResource(R.string.business_address),
+                title = stringResource(R.string.business_address) + " (عربي)",
                 subtitle = user?.businessAddress ?: stringResource(R.string.business_address),
                 onClick = { showAddressDialog = true }
             )
+
+            SettingsItem(
+                icon = Icons.Default.LocationOn,
+                title = stringResource(R.string.business_address) + " (English)",
+                subtitle = user?.businessAddressEn ?: "Set business address in English",
+                onClick = { showAddressEnDialog = true }
+            )
+
             SettingsItem(
                 icon = Icons.Default.Lock,
                 title = stringResource(R.string.password),
@@ -180,9 +244,11 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = user?.showVoiceInstructions ?: true,
-                    onCheckedChange = { 
-                        auth.currentUser?.uid?.let { uid ->
-                            db.collection("users").document(uid).update("showVoiceInstructions", it)
+                    onCheckedChange = { isChecked ->
+                        user?.let { 
+                            scope.launch {
+                                repository.saveUserLocally(it.copy(showVoiceInstructions = isChecked, isSynced = false))
+                            }
                         }
                     }
                 )
@@ -203,9 +269,11 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = appLockEnabled,
-                    onCheckedChange = { 
-                        auth.currentUser?.uid?.let { uid ->
-                            db.collection("users").document(uid).update("isAppLockEnabled", it)
+                    onCheckedChange = { isChecked ->
+                        user?.let {
+                            scope.launch {
+                                repository.saveUserLocally(it.copy(isAppLockEnabled = isChecked, isSynced = false))
+                            }
                         }
                     }
                 )
@@ -224,9 +292,11 @@ fun SettingsScreen(
                     }
                     Switch(
                         checked = biometricEnabled,
-                        onCheckedChange = { 
-                            auth.currentUser?.uid?.let { uid ->
-                                db.collection("users").document(uid).update("isBiometricEnabled", it)
+                        onCheckedChange = { isChecked ->
+                            user?.let {
+                                scope.launch {
+                                    repository.saveUserLocally(it.copy(isBiometricEnabled = isChecked, isSynced = false))
+                                }
                             }
                         }
                     )
@@ -255,9 +325,11 @@ fun SettingsScreen(
                 }
                 Switch(
                     checked = user?.debtNotificationEnabled ?: true,
-                    onCheckedChange = { 
-                        auth.currentUser?.uid?.let { uid ->
-                            db.collection("users").document(uid).update("debtNotificationEnabled", it)
+                    onCheckedChange = { isChecked ->
+                        user?.let {
+                            scope.launch {
+                                repository.saveUserLocally(it.copy(debtNotificationEnabled = isChecked, isSynced = false))
+                            }
                         }
                     }
                 )
@@ -314,9 +386,23 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             SettingsSectionTitle(title = stringResource(R.string.data_backup))
-            if (isExporting || isImporting) {
+            if (isExporting || isImporting || isSyncing) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
             }
+
+            SettingsItem(
+                icon = Icons.Default.CloudSync,
+                title = "مزامنة سحابية الآن",
+                subtitle = "رفع البيانات والتعديلات الجديدة فوراً إلى السحاب",
+                onClick = {
+                    isSyncing = true
+                    scope.launch {
+                        repository.syncWithCloud(forceDownload = false)
+                        isSyncing = false
+                        Toast.makeText(context, "تمت المزامنة بنجاح", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
             
             SettingsItem(
                 icon = Icons.Default.CloudUpload,
@@ -342,7 +428,10 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.export_pdf_subtitle),
                 onClick = {
                     isExporting = true
-                    fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+                    scope.launch {
+                        val userId = auth.currentUser?.uid ?: ""
+                        val customers = repository.getCustomers(userId).first()
+                        val transactions = repository.getTransactions(userId).first()
                         ExportUtils.exportToPdf(context, customers, transactions, userNameForReport)
                         isExporting = false
                     }
@@ -355,7 +444,10 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.export_excel_subtitle),
                 onClick = {
                     isExporting = true
-                    fetchDataAndExport(db, auth.currentUser?.uid ?: "") { customers, transactions ->
+                    scope.launch {
+                        val userId = auth.currentUser?.uid ?: ""
+                        val customers = repository.getCustomers(userId).first()
+                        val transactions = repository.getTransactions(userId).first()
                         ExportUtils.exportToExcel(context, customers, transactions, userNameForReport)
                         isExporting = false
                     }
@@ -365,22 +457,24 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             SettingsSectionTitle(title = stringResource(R.string.support_help))
-            SettingsItem(
-                icon = Icons.Default.SupportAgent,
-                title = stringResource(R.string.contact_support),
-                subtitle = stringResource(R.string.support_whatsapp_subtitle),
-                onClick = { 
-                    try {
-                        val supportNumber = appSettings.supportPhone
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                            data = Uri.parse("https://api.whatsapp.com/send?phone=$supportNumber&text=${java.net.URLEncoder.encode(context.getString(R.string.whatsapp_support_message), "UTF-8")}")
+            val supportNumber = appSettings.supportPhone
+            if (supportNumber.isNotEmpty()) {
+                SettingsItem(
+                    icon = Icons.Default.SupportAgent,
+                    title = stringResource(R.string.contact_support),
+                    subtitle = "واتساب: +$supportNumber",
+                    onClick = { 
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("https://api.whatsapp.com/send?phone=$supportNumber&text=${java.net.URLEncoder.encode(context.getString(R.string.whatsapp_support_message), "UTF-8")}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, context.getString(R.string.whatsapp_error), Toast.LENGTH_SHORT).show()
                         }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, context.getString(R.string.whatsapp_error), Toast.LENGTH_SHORT).show()
                     }
-                }
-            )
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
             
@@ -421,12 +515,54 @@ fun SettingsScreen(
         var newName by remember { mutableStateOf(user?.name ?: "") }
         AlertDialog(
             onDismissRequest = { showNameDialog = false },
-            title = { Text(stringResource(R.string.edit_store_name)) },
+            title = { Text(stringResource(R.string.edit_store_name) + " (عربي)") },
             text = { OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text(stringResource(R.string.name)) }) },
             confirmButton = {
                 TextButton(onClick = {
-                    auth.currentUser?.uid?.let { db.collection("users").document(it).update("name", newName) }
+                    user?.let {
+                        scope.launch {
+                            repository.saveUserLocally(it.copy(name = newName, isSynced = false))
+                        }
+                    }
                     showNameDialog = false
+                }) { Text(stringResource(R.string.save)) }
+            }
+        )
+    }
+
+    if (showNameEnDialog) {
+        var newNameEn by remember { mutableStateOf(user?.nameEn ?: "") }
+        AlertDialog(
+            onDismissRequest = { showNameEnDialog = false },
+            title = { Text("تعديل اسم المتجر (English)") },
+            text = { OutlinedTextField(value = newNameEn, onValueChange = { newNameEn = it }, label = { Text("Store Name (EN)") }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    user?.let {
+                        scope.launch {
+                            repository.saveUserLocally(it.copy(nameEn = newNameEn, isSynced = false))
+                        }
+                    }
+                    showNameEnDialog = false
+                }) { Text(stringResource(R.string.save)) }
+            }
+        )
+    }
+
+    if (showPhoneDialog) {
+        var newPhone by remember { mutableStateOf(user?.phoneNumber ?: "") }
+        AlertDialog(
+            onDismissRequest = { showPhoneDialog = false },
+            title = { Text(stringResource(R.string.phone_number)) },
+            text = { OutlinedTextField(value = newPhone, onValueChange = { newPhone = it }, label = { Text(stringResource(R.string.phone_number)) }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    user?.let {
+                        scope.launch {
+                            repository.saveUserLocally(it.copy(phoneNumber = newPhone, isSynced = false))
+                        }
+                    }
+                    showPhoneDialog = false
                 }) { Text(stringResource(R.string.save)) }
             }
         )
@@ -436,12 +572,35 @@ fun SettingsScreen(
         var newAddress by remember { mutableStateOf(user?.businessAddress ?: "") }
         AlertDialog(
             onDismissRequest = { showAddressDialog = false },
-            title = { Text(stringResource(R.string.edit_business_address)) },
+            title = { Text(stringResource(R.string.edit_business_address) + " (عربي)") },
             text = { OutlinedTextField(value = newAddress, onValueChange = { newAddress = it }, label = { Text(stringResource(R.string.address)) }) },
             confirmButton = {
                 TextButton(onClick = {
-                    auth.currentUser?.uid?.let { db.collection("users").document(it).update("businessAddress", newAddress) }
+                    user?.let {
+                        scope.launch {
+                            repository.saveUserLocally(it.copy(businessAddress = newAddress, isSynced = false))
+                        }
+                    }
                     showAddressDialog = false
+                }) { Text(stringResource(R.string.save)) }
+            }
+        )
+    }
+
+    if (showAddressEnDialog) {
+        var newAddressEn by remember { mutableStateOf(user?.businessAddressEn ?: "") }
+        AlertDialog(
+            onDismissRequest = { showAddressEnDialog = false },
+            title = { Text("تعديل العنوان (English)") },
+            text = { OutlinedTextField(value = newAddressEn, onValueChange = { newAddressEn = it }, label = { Text("Address (EN)") }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    user?.let {
+                        scope.launch {
+                            repository.saveUserLocally(it.copy(businessAddressEn = newAddressEn, isSynced = false))
+                        }
+                    }
+                    showAddressEnDialog = false
                 }) { Text(stringResource(R.string.save)) }
             }
         )
@@ -463,7 +622,11 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     if (newPin.length == 4) {
-                        auth.currentUser?.uid?.let { db.collection("users").document(it).update("appLockPin", newPin) }
+                        user?.let {
+                            scope.launch {
+                                repository.saveUserLocally(it.copy(appLockPin = newPin, isSynced = false))
+                            }
+                        }
                         showPinDialog = false
                     }
                 }) { Text(stringResource(R.string.save)) }
@@ -504,7 +667,11 @@ fun SettingsScreen(
                         Text(
                             text = curr,
                             modifier = Modifier.fillMaxWidth().clickable {
-                                auth.currentUser?.uid?.let { db.collection("users").document(it).update("defaultCurrency", curr) }
+                                user?.let {
+                                    scope.launch {
+                                        repository.saveUserLocally(it.copy(defaultCurrency = curr, isSynced = false))
+                                    }
+                                }
                                 showCurrencyDialog = false
                             }.padding(16.dp)
                         )
@@ -551,19 +718,15 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4
                     )
-                    if (template.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.trial_period),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    auth.currentUser?.uid?.let { db.collection("users").document(it).update("whatsappReminderTemplate", template) }
+                    user?.let {
+                        scope.launch {
+                            repository.saveUserLocally(it.copy(whatsappReminderTemplate = template, isSynced = false))
+                        }
+                    }
                     showTemplateDialog = false
                 }) { Text(stringResource(R.string.save)) }
             },
@@ -591,18 +754,6 @@ fun ProfileHeader(user: User?, email: String) {
                 Text(text = user?.name ?: stringResource(R.string.default_user_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(text = email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-    }
-}
-
-private fun fetchDataAndExport(db: FirebaseFirestore, userId: String, onReady: (List<Customer>, List<Transaction>) -> Unit) {
-    db.collection("customers").whereEqualTo("userId", userId).get().addOnSuccessListener { customerDocs ->
-        val customers = customerDocs.toObjects(Customer::class.java)
-        val ids = customers.map { it.customerId }
-        if (ids.isEmpty()) { onReady(emptyList(), emptyList()); return@addOnSuccessListener }
-        db.collection("transactions").get().addOnSuccessListener { transDocs ->
-            val list = transDocs.toObjects(Transaction::class.java).filter { it.customerId in ids }
-            onReady(customers, list)
         }
     }
 }

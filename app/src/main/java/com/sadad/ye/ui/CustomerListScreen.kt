@@ -38,12 +38,16 @@ import androidx.compose.ui.res.stringResource
 import com.sadad.ye.R
 import com.sadad.ye.models.Customer
 import com.sadad.ye.models.Transaction
+import com.sadad.ye.data.DataRepository
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerListScreen(
+    repository: DataRepository,
     onAddCustomerClick: () -> Unit,
     onEditCustomerClick: (Customer) -> Unit,
     onCustomerClick: (Customer) -> Unit,
@@ -58,6 +62,7 @@ fun CustomerListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     val auth = FirebaseAuth.getInstance()
     val currentUserId = auth.currentUser?.uid ?: ""
@@ -108,20 +113,20 @@ fun CustomerListScreen(
 
     LaunchedEffect(currentUserId) {
         if (currentUserId.isEmpty()) return@LaunchedEffect
-        val db = FirebaseFirestore.getInstance()
         
-        // جلب العملاء الخاصين بالمستخدم فقط
-        db.collection("customers").whereEqualTo("userId", currentUserId)
-            .addSnapshotListener { value, _ -> if (value != null) customers = value.toObjects(Customer::class.java) }
+        // جلب العملاء والعمليات من قاعدة البيانات المحلية (Room)
+        scope.launch {
+            repository.getCustomers(currentUserId).collectLatest {
+                customers = it
+            }
+        }
         
-        // تحسين كبير: جلب العمليات الخاصة بالمستخدم فقط بدلاً من جلب الكل
-        db.collection("transactions").whereEqualTo("userId", currentUserId)
-            .addSnapshotListener { value, _ ->
-                if (value != null) {
-                    transactions = value.toObjects(Transaction::class.java)
-                }
+        scope.launch {
+            repository.getTransactions(currentUserId).collectLatest {
+                transactions = it
                 isLoading = false
             }
+        }
     }
 
     val filteredCustomers = customers.filter { 
@@ -210,20 +215,30 @@ fun CustomerListScreen(
             }
         ) { paddingValues ->
             Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-                val totalAllBalances = customers.sumOf { customer ->
-                    val customerTransactions = transactions.filter { it.customerId == customer.customerId }
-                    val balance = customerTransactions.filter { it.debt }.sumOf { it.amount } - customerTransactions.filter { !it.debt }.sumOf { it.amount }
-                    if (balance > 0) balance else 0.0
-                }
+                val totalBalancesByCurrency = customers.groupBy { 
+                    if (it.currency.isNotEmpty()) it.currency else currency 
+                }.mapValues { (_, customersInCurrency) ->
+                    customersInCurrency.sumOf { customer ->
+                        val customerTransactions = transactions.filter { it.customerId == customer.customerId }
+                        val balance = customerTransactions.filter { it.debt }.sumOf { it.amount } - customerTransactions.filter { !it.debt }.sumOf { it.amount }
+                        if (balance > 0) balance else 0.0
+                    }
+                }.filter { it.value > 0 }
 
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp), 
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(stringResource(R.string.total_debts_label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${formatAmount(totalAllBalances)} $currency", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            if (totalBalancesByCurrency.isEmpty()) {
+                                Text("0 $currency", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            } else {
+                                totalBalancesByCurrency.forEach { (curr, total) ->
+                                    Text("${formatAmount(total)} $curr", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                         Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
                     }
@@ -247,11 +262,14 @@ fun CustomerListScreen(
                             CustomerItem(
                                 customer = customer, 
                                 balance = balance, 
-                                currency = currency, 
+                                currency = if (customer.currency.isNotEmpty()) customer.currency else currency, 
                                 lastDate = lastDate,
                                 onClick = { onCustomerClick(customer) }, 
                                 onEdit = { onEditCustomerClick(customer) }, 
-                                onDelete = { deleteCustomer(customer.customerId, context) }
+                                onDelete = { 
+                                    scope.launch { repository.deleteCustomer(customer) }
+                                    Toast.makeText(context, context.getString(R.string.customer_deleted_success), Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -260,7 +278,7 @@ fun CustomerListScreen(
         }
 
         voiceResult?.let { action ->
-            VoiceConfirmDialog(action, currency, { voiceResult = null }, { 
+            VoiceConfirmDialog(action, if (action.customer.currency.isNotEmpty()) action.customer.currency else currency, { voiceResult = null }, {
                 // فحص سقف المديونية قبل الحفظ
                 if (action.isDebt && action.customer.debtLimit > 0) {
                     val customerTransactions = transactions.filter { it.customerId == action.customer.customerId }
@@ -273,7 +291,7 @@ fun CustomerListScreen(
                     }
                 }
 
-                saveVoiceTransaction(action, context)
+                saveVoiceTransaction(action, repository, context)
                 voiceResult = null
                 Toast.makeText(context, context.getString(R.string.voice_success), Toast.LENGTH_SHORT).show()
             })
@@ -550,10 +568,11 @@ fun voiceAnalysis(text: String, customers: List<Customer>, context: Context): Vo
     return if (foundCustomer != null && amount > 0) VoiceAction(foundCustomer, amount, isDebt, note, cleanText) else null
 }
 
-fun saveVoiceTransaction(action: VoiceAction, context: Context) {
-    val db = FirebaseFirestore.getInstance()
+fun saveVoiceTransaction(action: VoiceAction, repository: DataRepository, context: Context) {
     val auth = FirebaseAuth.getInstance()
     val id = UUID.randomUUID().toString()
     val trans = Transaction(id, action.customer.customerId, auth.currentUser?.uid ?: "", action.amount, action.note.ifEmpty { context.getString(R.string.whatsapp_sent_voice) }, System.currentTimeMillis(), action.isDebt)
-    db.collection("transactions").document(id).set(trans)
+    kotlinx.coroutines.MainScope().launch {
+        repository.addTransaction(trans)
+    }
 }

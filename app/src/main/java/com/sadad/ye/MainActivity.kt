@@ -48,6 +48,10 @@ import com.sadad.ye.ui.*
 import com.sadad.ye.ui.theme.سدادTheme
 import com.sadad.ye.utils.BackupUtils
 import com.sadad.ye.utils.NotificationUtils
+import com.sadad.ye.data.DataRepository
+import com.sadad.ye.utils.SyncUtils
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -60,6 +64,7 @@ class MainActivity : AppCompatActivity() {
             val context = LocalContext.current
             val auth = remember { FirebaseAuth.getInstance() }
             val db = remember { FirebaseFirestore.getInstance() }
+            val repository = remember { DataRepository(context) }
             
             var authInitialized by remember { mutableStateOf(false) }
             var currentUserId by remember { mutableStateOf(auth.currentUser?.uid ?: "") }
@@ -100,9 +105,47 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     LaunchedEffect(currentUserId) {
+                        // جلب إعدادات التطبيق العامة (الدعم الفني، التفعيل، إلخ)
+                        db.collection("config").document("app_settings").addSnapshotListener { snapshot, _ ->
+                            if (snapshot != null && snapshot.exists()) {
+                                snapshot.toObject(AppSettings::class.java)?.let { appSettings = it }
+                            }
+                        }
+
                         if (currentUserId.isNotEmpty()) {
+                            // 1. مراقبة بيانات المستخدم محلياً
+                            scope.launch {
+                                repository.getUser(currentUserId).collectLatest {
+                                    currentUserData = it
+                                }
+                            }
+                            
+                            // 2. مزامنة بيانات المستخدم من Cloud بذكاء
                             db.collection("users").document(currentUserId).addSnapshotListener { snapshot, _ ->
-                                if (snapshot != null && snapshot.exists()) currentUserData = snapshot.toObject(User::class.java)
+                                if (snapshot != null && snapshot.exists()) {
+                                    val cloudUser = snapshot.toObject(User::class.java)
+                                    cloudUser?.let { 
+                                        scope.launch { 
+                                            val localUser = repository.getUser(currentUserId).first()
+                                            // نحدث محلياً فقط إذا كان المستخدم غير موجود أو إذا كانت البيانات المحلية متزامنة أصلاً (لا توجد تعديلات معلقة)
+                                            if (localUser == null || localUser.isSynced) {
+                                                if (it.userId.isEmpty()) it.userId = snapshot.id
+                                                repository.saveUserLocally(it.apply { isSynced = true })
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 3. جدولة المزامنة اليومية (افتراضياً الساعة 3 فجراً)
+                            SyncUtils.scheduleDailySync(context, 3, 0)
+
+                            // 4. فحص إذا كانت البيانات المحلية فارغة، نقوم بجلبها من السحاب (مرة واحدة عند الدخول)
+                            scope.launch {
+                                val localCustomers = repository.getCustomers(currentUserId).first()
+                                if (localCustomers.isEmpty()) {
+                                    repository.syncWithCloud(forceDownload = true)
+                                }
                             }
                         }
                     }
@@ -136,9 +179,12 @@ class MainActivity : AppCompatActivity() {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable { 
-                                            scope.launch { drawerState.close() } // نغلق اللوحة فوراً
-                                            val newDark = !(currentUserData?.isDarkMode ?: false)
-                                            auth.currentUser?.uid?.let { db.collection("users").document(it).update("isDarkMode", newDark) }
+                                            scope.launch { 
+                                                drawerState.close() 
+                                                currentUserData?.let {
+                                                    repository.saveUserLocally(it.copy(isDarkMode = !(it.isDarkMode ?: false), isSynced = false))
+                                                }
+                                            }
                                         }
                                         .padding(horizontal = 24.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -149,8 +195,12 @@ class MainActivity : AppCompatActivity() {
                                     Switch(
                                         checked = currentUserData?.isDarkMode == true,
                                         onCheckedChange = { isChecked ->
-                                            scope.launch { drawerState.close() }
-                                            auth.currentUser?.uid?.let { uid -> db.collection("users").document(uid).update("isDarkMode", isChecked) }
+                                            scope.launch { 
+                                                drawerState.close() 
+                                                currentUserData?.let {
+                                                    repository.saveUserLocally(it.copy(isDarkMode = isChecked, isSynced = false))
+                                                }
+                                            }
                                         },
                                         modifier = Modifier.scale(0.8f)
                                     )
@@ -244,6 +294,7 @@ class MainActivity : AppCompatActivity() {
                                     selectedCustomer = selectedCustomer,
                                     userData = currentUserData,
                                     appSettings = appSettings,
+                                    repository = repository,
                                     onNavigate = { screen, customer ->
                                         currentScreen = screen
                                         selectedCustomer = customer
@@ -339,12 +390,14 @@ fun MainNavigation(
     selectedCustomer: Customer?,
     userData: User?,
     appSettings: AppSettings,
+    repository: DataRepository,
     onNavigate: (String, Customer?) -> Unit,
     onOpenDrawer: () -> Unit
 ) {
     val currency = userData?.defaultCurrency ?: stringResource(R.string.currency_default)
     when (currentScreen) {
         "list" -> CustomerListScreen(
+            repository = repository,
             onAddCustomerClick = { onNavigate("add", null) },
             onEditCustomerClick = { onNavigate("edit", it) },
             onCustomerClick = { onNavigate("details", it) },
@@ -353,16 +406,18 @@ fun MainNavigation(
             currency = currency,
             showVoiceInstructions = userData?.showVoiceInstructions ?: true,
             onDisableInstructions = { show ->
-                userData?.userId?.let { uid ->
-                    FirebaseFirestore.getInstance().collection("users").document(uid).update("showVoiceInstructions", show)
+                userData?.let { 
+                    kotlinx.coroutines.MainScope().launch {
+                        repository.saveUserLocally(it.copy(showVoiceInstructions = show, isSynced = false))
+                    }
                 }
             }
         )
-        "add" -> AddCustomerScreen({ onNavigate("list", null) }, currency)
-        "edit" -> selectedCustomer?.let { EditCustomerScreen(it, { onNavigate("list", null) }, currency) }
-        "details" -> selectedCustomer?.let { CustomerDetailsScreen(it, { onNavigate("list", null) }, currency, userData) }
-        "daily_report" -> DailyReportScreen({ onNavigate("list", null) }, currency)
-        "settings" -> SettingsScreen(userData, appSettings, { onNavigate("list", null) }, { onNavigate("admin", null) })
+        "add" -> AddCustomerScreen(repository, { onNavigate("list", null) }, currency)
+        "edit" -> selectedCustomer?.let { EditCustomerScreen(it, repository, { onNavigate("list", null) }, currency) }
+        "details" -> selectedCustomer?.let { CustomerDetailsScreen(it, repository, { onNavigate("list", null) }, currency, userData) }
+        "daily_report" -> DailyReportScreen(repository, { onNavigate("list", null) }, currency)
+        "settings" -> SettingsScreen(userData, appSettings, repository, { onNavigate("list", null) }, { onNavigate("admin", null) })
         "admin" -> AdminPanelScreen { onNavigate("settings", null) }
     }
 }
